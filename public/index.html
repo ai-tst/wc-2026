@@ -101,6 +101,7 @@
             </div>
           </div>
           <div class="main-header__actions">
+            <button type="button" id="bracket-btn" class="secondary-btn bracket-btn" title="Турнирная сетка плей-офф">🏆 Плей-офф</button>
             <button type="button" id="design-toggle-btn" class="secondary-btn design-toggle" title="Переключить старый/новый дизайн">✨ Новый дизайн</button>
             <button type="button" id="logout-btn" class="secondary-btn">Выйти</button>
           </div>
@@ -246,6 +247,24 @@
           <section class="card">
             <h2>История ставок на матчи</h2>
             <div id="profile-match-list" class="match-results-list"></div>
+          </section>
+        </main>
+      </section>
+
+      <section id="view-bracket" class="view hidden">
+        <header class="main-header">
+          <div class="main-header__brand">
+            <img src="otsos-logo.png" alt="Отсос! Ставки на ЧМ-2026" class="wc-logo wc-logo--header" />
+            <div>
+              <h1>🏆 Плей-офф</h1>
+              <p class="muted small">Турнирная сетка ЧМ-2026</p>
+            </div>
+          </div>
+          <button type="button" id="bracket-back-btn" class="secondary-btn">← Назад</button>
+        </header>
+        <main class="layout">
+          <section class="card card--bracket">
+            <div id="bracket-content"></div>
           </section>
         </main>
       </section>

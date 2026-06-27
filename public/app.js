@@ -14,6 +14,7 @@ import {
 import { renderMatches, renderMatchResults, renderPlayerProfile } from "./matches.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { renderStats } from "./stats.js";
+import { renderBracket } from "./bracket.js";
 import { fetchMatchesFromSportDb } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
@@ -38,10 +39,12 @@ const MOCK_MATCHES = [
 
 // ── Views ────────────────────────────────────────────────────────────────────
 function showView(name) {
-  ["view-auth", "view-onboarding", "view-main", "view-player-profile"].forEach((id) => {
+  ["view-auth", "view-onboarding", "view-main", "view-player-profile", "view-bracket"].forEach((id) => {
     const el = $(id);
     if (el) el.classList.toggle("hidden", id !== name);
   });
+  // bracket wants the full monitor width (more columns than the capped layout)
+  document.body.classList.toggle("bracket-open", name === "view-bracket");
 }
 
 // ── Match loading ─────────────────────────────────────────────────────────────
@@ -244,8 +247,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupResultsToggle();
   setupPlayerProfile();
   setupDesignToggle();
+  setupBracket();
   await route();
 });
+
+// ── Playoff bracket view ──────────────────────────────────────────────────────
+function setupBracket() {
+  $("bracket-btn")?.addEventListener("click", () => {
+    showView("view-bracket");
+    renderBracket();
+  });
+  $("bracket-back-btn")?.addEventListener("click", () => showView("view-main"));
+}
 
 // ── Design v1/v2 toggle ───────────────────────────────────────────────────────
 function applyDesign() {

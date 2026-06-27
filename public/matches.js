@@ -178,10 +178,10 @@ const TEAM_FLAGS = {
   "Tuvalu": "tv", "Vanuatu": "vu",
 };
 
-function withFlag(name) {
+export function withFlag(name) {
   const code = TEAM_FLAGS[name];
   const flag = code ? `<span class="fi fi-${code} team-flag"></span>` : "";
-  return `${flag}${escapeHtml(name)}`;
+  return `${flag}<span class="team-name">${escapeHtml(name)}</span>`;
 }
 
 function showBetError(msg) {
