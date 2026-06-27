@@ -94,6 +94,54 @@ export function resolveActualResult(match) {
   return adminEntry ?? null;
 }
 
+// ── Playoff bracket ───────────────────────────────────────────────────────────
+// Knockout round detected from the match's `group` label (sstats `roundName`).
+// Order matters: "quarter-final"/"semi-final" both contain "final", so those are
+// checked before the bare "final". Real values seen live: "Round of 32".
+export function classifyKnockoutRound(group) {
+  const g = (group || "").toLowerCase();
+  if (g.includes("round of 32") || g.includes("1/16")) return "R32";
+  if (g.includes("round of 16") || g.includes("1/8"))  return "R16";
+  if (g.includes("quarter")     || g.includes("1/4"))  return "QF";
+  if (g.includes("semi")        || g.includes("1/2"))  return "SF";
+  if (g.includes("final"))                             return "F";
+  return null;
+}
+
+// Escalating bracket bonus, ADDED on top of normal match points (исход +1 /
+// точный +3 / игрок +2 still apply to playoff matches). Deeper round = more.
+// The Final/champion stays as the existing "winner" outright (+8), so F earns no
+// bracket bonus here — no double counting.
+export const BRACKET_BONUS = {
+  R32: { outcome: 1, player: 0 },
+  R16: { outcome: 2, player: 1 },
+  QF:  { outcome: 4, player: 1 },
+  SF:  { outcome: 8, player: 2 },
+};
+
+export function calculateBracketBonus(user) {
+  let total = 0;
+  for (const match of activeMatches) {
+    total += matchPointsFor(user.matches?.[match.id], match).bonus;
+  }
+  return total;
+}
+
+// Points a single match is worth to a prediction = base (исход/точный/игрок) PLUS
+// the escalating playoff bonus for knockout rounds. `total` already includes the
+// bonus, so result cards/badges that read `.total` show the full earned points.
+export function matchPointsFor(pred, match) {
+  const actual = resolveActualResult(match);
+  const base = calculatePointsForMatch(pred, actual);
+  const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
+  let bonus = 0;
+  if (tier) {
+    if (base.outcomeCorrect)    bonus += tier.outcome;
+    if (base.bestPlayerCorrect) bonus += tier.player;
+  }
+  return { ...base, bonus, total: base.total + bonus };
+}
+
 export function getUserTotalPoints(user) {
   let total = 0;
   for (const match of activeMatches) {
@@ -102,6 +150,7 @@ export function getUserTotalPoints(user) {
     total += calculatePointsForMatch(pred, actual).total;
   }
   total += calculateOutrightsPoints(user.outrights, state.actualOutrights);
+  total += calculateBracketBonus(user);
   total += user.bonusPoints || 0;
   return total;
 }

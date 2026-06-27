@@ -13,9 +13,13 @@ import {
 } from "./outrights.js";
 import { renderMatches, renderMatchResults, renderPlayerProfile } from "./matches.js";
 import { renderScoreboard } from "./scoreboard.js";
+import { renderStats } from "./stats.js";
+import { renderBracket } from "./bracket.js";
+import { setupCasino } from "./casino.js";
 import { fetchMatchesFromSportDb } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
+  apiSetDesignVersion,
 } from "./api-client.js";
 
 // ── Mock data ────────────────────────────────────────────────────────────────
@@ -36,10 +40,12 @@ const MOCK_MATCHES = [
 
 // ── Views ────────────────────────────────────────────────────────────────────
 function showView(name) {
-  ["view-auth", "view-onboarding", "view-main", "view-player-profile"].forEach((id) => {
+  ["view-auth", "view-onboarding", "view-main", "view-player-profile", "view-bracket"].forEach((id) => {
     const el = $(id);
     if (el) el.classList.toggle("hidden", id !== name);
   });
+  // bracket wants the full monitor width (more columns than the capped layout)
+  document.body.classList.toggle("bracket-open", name === "view-bracket");
 }
 
 // ── Match loading ─────────────────────────────────────────────────────────────
@@ -56,6 +62,7 @@ async function loadMatches(dateOverride) {
   renderMatches();
   renderMatchResults();
   renderScoreboard();
+  renderStats();
   scheduleRefreshIfLive();
 }
 
@@ -84,6 +91,7 @@ async function refreshLeaderboard() {
     renderMatches();       // re-render to show all participants' bets on live/ended matches
     renderMatchResults();
     renderScoreboard();
+    renderStats();
     renderAllOutrights();
     if (currentUser?.isAdmin) {
       renderActualOutrights();
@@ -219,6 +227,7 @@ async function route() {
   ]);
 
   setCurrentUser({ ...userData, matches: predictions, outrights });
+  applyDesign();
 
   if (!currentUser.onboardingComplete) {
     $("onboarding-nickname").textContent = currentUser.nickname;
@@ -238,8 +247,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupTestControls();
   setupResultsToggle();
   setupPlayerProfile();
+  setupDesignToggle();
+  setupBracket();
+  setupCasino();
   await route();
 });
+
+// ── Playoff bracket view ──────────────────────────────────────────────────────
+function setupBracket() {
+  $("bracket-btn")?.addEventListener("click", () => {
+    showView("view-bracket");
+    renderBracket();
+  });
+  $("bracket-back-btn")?.addEventListener("click", () => showView("view-main"));
+}
+
+// ── Design v1/v2 toggle ───────────────────────────────────────────────────────
+function applyDesign() {
+  const v2 = currentUser?.designVersion === "v2";
+  document.body.classList.toggle("design-v2", v2);
+  const btn = $("design-toggle-btn");
+  if (btn) btn.textContent = v2 ? "↩ Старый дизайн" : "✨ Новый дизайн";
+}
+
+function setupDesignToggle() {
+  const btn = $("design-toggle-btn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (!currentUser) return;
+    const next = currentUser.designVersion === "v2" ? "v1" : "v2";
+    btn.disabled = true;
+    btn.textContent = "…";
+    // Persist, then hard-reload so the new design applies cleanly (no half-applied styles)
+    try { await apiSetDesignVersion(next); }
+    catch (err) { console.error("[design] save failed:", err); }
+    location.reload();
+  });
+}
 
 function setupResultsToggle() {
   const btn  = $("toggle-results-btn");

@@ -247,6 +247,9 @@ def init_db():
         ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT DEFAULT NULL
     """)
     db.execute("""
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS design_version TEXT DEFAULT 'v1'
+    """)
+    db.execute("""
         CREATE TABLE IF NOT EXISTS telegram_reminders_sent (
             match_id TEXT PRIMARY KEY
         )
@@ -829,6 +832,7 @@ def user_to_dict(u):
         "nickname":           u["nickname"],
         "onboardingComplete": bool(u["onboarding_complete"]),
         "isAdmin":            bool(u["is_admin"]),
+        "designVersion":      u["design_version"] or "v1",
         "passport": {
             "fullName":   u["full_name"]       or "",
             "number":     u["passport_number"] or "",
@@ -939,6 +943,22 @@ def auth_me():
         session.pop("user_id", None)
         return jsonify(None)
     return jsonify(user_to_dict(user))
+
+
+@app.route("/api/me/design-version", methods=["PUT"])
+def set_design_version():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Не авторизован"}), 401
+    data = request.get_json() or {}
+    version = (data.get("version") or "").strip()
+    if version not in ("v1", "v2"):
+        return jsonify({"error": "Неверная версия дизайна"}), 400
+    db = get_db()
+    db.execute("UPDATE users SET design_version=%s WHERE id=%s", [version, uid])
+    db.commit()
+    db.close()
+    return jsonify({"ok": True, "designVersion": version})
 
 # ==========================================
 # OUTRIGHTS (user long-term picks)

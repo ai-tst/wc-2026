@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .env
 .env.*
+!.env.example
 *.log
 venv/
 .venv/
@@ -10,3 +11,8 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+.gstack/
+
+# Casino mode music — copyrighted track, kept out of the public repo.
+# Lives only on the server (deployed via scp to public/casino-music.mp3).
+public/casino-music.mp3

@@ -3,6 +3,26 @@ import { $, escapeHtml, canEditOutrights, formatDeadline, parseDarkHorse } from 
 import { renderScoreboard } from "./scoreboard.js";
 import { apiSaveOutrights, apiSaveActualOutrights } from "./api-client.js";
 import { createTeamSelector, createPlayerSelector } from "./wc-selector.js";
+import { getUserTotalPoints } from "./points.js";
+
+// Russian WC team name → ISO flag code (for flag-icons), used in v2 outrights.
+const RU_TEAM_FLAGS = {
+  "Австралия":"au","Австрия":"at","Англия":"gb-eng","Аргентина":"ar","Бельгия":"be",
+  "Бразилия":"br","Германия":"de","Испания":"es","Колумбия":"co","Марокко":"ma",
+  "Мексика":"mx","Нидерланды":"nl","Норвегия":"no","Португалия":"pt","США":"us",
+  "Уругвай":"uy","Франция":"fr","Хорватия":"hr","Швейцария":"ch","Швеция":"se",
+  "Южная Корея":"kr","Япония":"jp","Алжир":"dz","Босния и Герцеговина":"ba","Гаити":"ht",
+  "Гана":"gh","ДР Конго":"cd","Египет":"eg","Иордания":"jo","Иран":"ir","Ирак":"iq",
+  "Кабо-Верде":"cv","Канада":"ca","Катар":"qa","Кот-д'Ивуар":"ci","Кюрасао":"cw",
+  "Новая Зеландия":"nz","Панама":"pa","Парагвай":"py","Саудовская Аравия":"sa","Сенегал":"sn",
+  "Тунис":"tn","Турция":"tr","Узбекистан":"uz","Чехия":"cz","Шотландия":"gb-sct",
+  "Эквадор":"ec","ЮАР":"za",
+};
+function ruFlag(name) {
+  const code = RU_TEAM_FLAGS[(name || "").trim()];
+  return code ? `<span class="fi fi-${code} team-flag"></span>` : "";
+}
+const isV2 = () => currentUser?.designVersion === "v2";
 
 // ── Dark horse chip selector ─────────────────────────────────────────────────
 
@@ -73,12 +93,30 @@ export function renderOutrightsSection() {
   const dhTeams = parseDarkHorse(o.darkHorse);
   const dhText  = dhTeams.length ? dhTeams.join(", ") : "—";
 
-  display.innerHTML = `
-    <div class="outrights-item"><span class="label">Победитель ЧМ</span><span class="value">${escapeHtml(o.winner)}</span></div>
-    <div class="outrights-item"><span class="label">Лучший игрок</span><span class="value">${escapeHtml(o.bestPlayer)}</span></div>
-    <div class="outrights-item"><span class="label">Лучший бомбардир</span><span class="value">${escapeHtml(o.topScorer)}</span></div>
-    <div class="outrights-item"><span class="label">Уёбищные команды</span><span class="value">${escapeHtml(dhText)}</span></div>
-  `;
+  const h2 = document.querySelector(".card--outrights h2");
+  if (isV2()) {
+    if (h2) h2.textContent = "Долгосрочные ставки";
+    const winnerHtml = (o.winner ? ruFlag(o.winner) : "") + escapeHtml(o.winner || "—");
+    const dhHtml = dhTeams.length
+      ? dhTeams.map((t) => `<span class="oc-dh">${ruFlag(t)}${escapeHtml(t)}</span>`).join("")
+      : "—";
+    display.innerHTML = `
+      <div class="oc-mine-label">Твоя</div>
+      <div class="outrights-compact">
+        <span class="oc-item"><span class="oc-label">Чемпион</span>${winnerHtml}</span>
+        <span class="oc-item"><span class="oc-label">Лучший игрок</span>${escapeHtml(o.bestPlayer || "—")}</span>
+        <span class="oc-item"><span class="oc-label">Бомбардир</span>${escapeHtml(o.topScorer || "—")}</span>
+        <span class="oc-item oc-item--dh"><span class="oc-label">Уёбищные</span><span class="oc-dh-list">${dhHtml}</span></span>
+      </div>`;
+  } else {
+    if (h2) h2.textContent = "Ваши долгосрочные ставки";
+    display.innerHTML = `
+      <div class="outrights-item"><span class="label">Победитель ЧМ</span><span class="value">${escapeHtml(o.winner)}</span></div>
+      <div class="outrights-item"><span class="label">Лучший игрок</span><span class="value">${escapeHtml(o.bestPlayer)}</span></div>
+      <div class="outrights-item"><span class="label">Лучший бомбардир</span><span class="value">${escapeHtml(o.topScorer)}</span></div>
+      <div class="outrights-item"><span class="label">Уёбищные команды</span><span class="value">${escapeHtml(dhText)}</span></div>
+    `;
+  }
 
   if (canEditOutrights()) {
     hint.textContent = `Можно изменить до ${formatDeadline()} включительно.`;
@@ -213,43 +251,54 @@ export function setupAdmin() {
 
 // ── All-outrights public table (shown after deadline) ────────────────────────
 export function renderAllOutrights() {
-  const section = $("all-outrights-section");
+  const section = $("all-outrights-section");   // v1: bottom of page (all users)
   const list    = $("all-outrights-list");
-  if (!section || !list) return;
-  if (canEditOutrights() || !state.users?.length) { section.classList.add("hidden"); return; }
+  const block   = $("outrights-others-block");  // v2: collapsible under your picks (others only)
+  const olist   = $("outrights-others-list");
 
-  section.classList.remove("hidden");
+  const hideAll = () => { section?.classList.add("hidden"); block?.classList.add("hidden"); };
+  if (!section && !block) return;
+  if (canEditOutrights() || !state.users?.length) { hideAll(); return; }
 
   const ao  = state.actualOutrights || {};
   const eq  = (a, b) => a && b && a.trim().toLowerCase() === b.trim().toLowerCase();
   const actualDH = parseDarkHorse(ao.darkHorse);
 
-  const rows = state.users.map((u) => {
-    const o      = u.outrights || emptyOutrights();
+  const rowFor = (u) => {
+    const o        = u.outrights || emptyOutrights();
     const playerDH = parseDarkHorse(o.darkHorse);
     const dhCells  = playerDH.map((t) => {
       const hit = actualDH.some((a) => eq(a, t));
-      return `<span class="${hit ? "check-correct" : ""}">${escapeHtml(t)}</span>`;
+      return `<span class="${hit ? "check-correct" : ""}" style="white-space:nowrap">${ruFlag(t)}${escapeHtml(t)}</span>`;
     }).join(" · ") || "—";
-
     return `<tr>
       <td>${escapeHtml(u.nickname)}</td>
-      <td class="${eq(o.winner,     ao.winner)     ? "check-correct" : ""}">${escapeHtml(o.winner     || "—")}</td>
+      <td class="${eq(o.winner,     ao.winner)     ? "check-correct" : ""}">${o.winner ? ruFlag(o.winner) : ""}${escapeHtml(o.winner || "—")}</td>
       <td class="${eq(o.bestPlayer, ao.bestPlayer) ? "check-correct" : ""}">${escapeHtml(o.bestPlayer || "—")}</td>
       <td class="${eq(o.topScorer,  ao.topScorer)  ? "check-correct" : ""}">${escapeHtml(o.topScorer  || "—")}</td>
       <td>${dhCells}</td>
     </tr>`;
-  }).join("");
+  };
 
-  list.innerHTML = `
+  const table = (users) => `
     <div class="admin-table-wrapper" style="margin-top:10px">
       <table class="admin-table">
         <thead><tr>
           <th>Участник</th><th>Победитель (+8)</th><th>Лучший игрок (+8)</th>
           <th>Бомбардир (+5)</th><th>Уёбищные (3×+3)</th>
         </tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${users.map(rowFor).join("")}</tbody>
       </table>
-    </div>
-  `;
+    </div>`;
+
+  // Order participants by leaderboard rank (most points first)
+  const sorted = [...state.users].sort((a, b) => getUserTotalPoints(b) - getUserTotalPoints(a));
+  // v1 bottom table shows everyone
+  if (section && list) { section.classList.remove("hidden"); list.innerHTML = table(sorted); }
+  // v2 in-card collapsible shows OTHERS, ordered by leaderboard rank
+  if (block && olist) {
+    const others = sorted.filter((u) => u.nickname !== currentUser?.nickname);
+    block.classList.remove("hidden");
+    olist.innerHTML = table(others);
+  }
 }

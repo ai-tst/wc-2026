@@ -6,13 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="../styles.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" />
+    <link rel="icon" type="image/png" href="otsos-logo.png" />
+    <link rel="apple-touch-icon" href="otsos-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div class="app">
       <section id="view-auth" class="view view--centered hidden">
         <div class="auth-card card">
           <header class="auth-header">
-            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo" />
+            <img src="otsos-logo.png" alt="Отсос! Ставки на ЧМ-2026" class="wc-logo" />
             <h1>Отсос!</h1>
             <p class="muted small">Зарегайся или войди</p>
           </header>
@@ -56,7 +61,7 @@
       <section id="view-onboarding" class="view view--centered hidden">
         <div class="auth-card card">
           <header class="auth-header">
-            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo" />
+            <img src="otsos-logo.png" alt="Отсос! Ставки на ЧМ-2026" class="wc-logo" />
             <h1>Привет, <span id="onboarding-nickname"></span>!</h1>
             <p class="muted">Го ща сделаешь ставки на весь ЧМ</p>
           </header>
@@ -88,13 +93,18 @@
       <section id="view-main" class="view hidden">
         <header class="main-header">
           <div class="main-header__brand">
-            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo wc-logo--header" />
+            <img src="otsos-logo.png" alt="Отсос! Ставки на ЧМ-2026" class="wc-logo wc-logo--header" />
             <div>
               <h1>Отсос!</h1>
               <p class="muted small">Привет, <strong id="main-nickname"></strong>!</p>
+              <p class="main-header__tagline">Ставь до начала матча: счёт + лучший игрок. Угадал — капают очки 👇</p>
             </div>
           </div>
-          <button type="button" id="logout-btn" class="secondary-btn">Выйти</button>
+          <div class="main-header__actions">
+            <button type="button" id="bracket-btn" class="secondary-btn bracket-btn" title="Турнирная сетка плей-офф">🏆 Плей-офф</button>
+            <button type="button" id="design-toggle-btn" class="secondary-btn design-toggle" title="Переключить старый/новый дизайн">✨ Новый дизайн</button>
+            <button type="button" id="logout-btn" class="secondary-btn">Выйти</button>
+          </div>
         </header>
         <main class="layout">
           <section class="card card--outrights">
@@ -130,12 +140,21 @@
                 <button type="button" id="cancel-outrights-btn" class="secondary-btn">Отмена</button>
               </div>
             </form>
+            <details id="outrights-others-block" class="outrights-others hidden">
+              <summary class="outrights-others-sum">Участников</summary>
+              <div id="outrights-others-list"></div>
+            </details>
           </section>
+
+          <details id="stats-section" class="card card--stats">
+            <summary class="stats-summary">📊 Статистика</summary>
+            <div id="stats-content"></div>
+          </details>
 
           <div class="main-grid">
             <section class="card">
               <h2>Матчи сёдня</h2>
-              <p class="muted small">Исход +1, точный счёт +3, лучший игрок +2.</p>
+              <p class="muted small scoring-hint">Исход +1, точный счёт +3, лучший игрок +2.</p>
               <div id="matches-list" class="matches-list"></div>
             </section>
             <section class="card">
@@ -216,7 +235,7 @@
       <section id="view-player-profile" class="view hidden">
         <header class="main-header">
           <div class="main-header__brand">
-            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo wc-logo--header" />
+            <img src="otsos-logo.png" alt="Отсос! Ставки на ЧМ-2026" class="wc-logo wc-logo--header" />
             <div>
               <h1>Отсос!</h1>
               <p class="muted small">Ставки: <strong id="profile-nickname"></strong></p>
@@ -228,6 +247,24 @@
           <section class="card">
             <h2>История ставок на матчи</h2>
             <div id="profile-match-list" class="match-results-list"></div>
+          </section>
+        </main>
+      </section>
+
+      <section id="view-bracket" class="view hidden">
+        <header class="main-header">
+          <div class="main-header__brand">
+            <img src="otsos-logo.png" alt="Отсос! Ставки на ЧМ-2026" class="wc-logo wc-logo--header" />
+            <div>
+              <h1>🏆 Плей-офф</h1>
+              <p class="muted small">Турнирная сетка ЧМ-2026</p>
+            </div>
+          </div>
+          <button type="button" id="bracket-back-btn" class="secondary-btn">← Назад</button>
+        </header>
+        <main class="layout">
+          <section class="card card--bracket">
+            <div id="bracket-content"></div>
           </section>
         </main>
       </section>
