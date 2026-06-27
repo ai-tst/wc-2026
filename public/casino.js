@@ -50,9 +50,12 @@ function showIntroSplash() {
   const word = "CASINO";
   const colors = ["#ff2e63", "#ff9a00", "#ffe600", "#27ff64", "#00d4ff", "#b14bff"];
   const c = (word.length - 1) / 2;
+  // дуга балансируется вокруг центра (середина вверх, края вниз), чтобы надпись
+  // визуально стояла ровно по центру окна, а не уезжала вниз
+  const meanD2 = [...word].reduce((s, _, i) => s + (i - c) * (i - c), 0) / word.length;
   const letters = [...word].map((ch, i) => {
     const d = i - c, col = colors[i % colors.length];
-    return `<span style="color:${col};--d:${d};--d2:${d * d};text-shadow:0 0 26px ${col},0 0 50px ${col}">${ch}</span>`;
+    return `<span style="color:${col};--d:${d};--off:${(d * d - meanD2).toFixed(3)};text-shadow:0 0 26px ${col},0 0 50px ${col}">${ch}</span>`;
   }).join("");
   const el = document.createElement("div");
   el.className = "casino-intro";
@@ -147,6 +150,7 @@ function buildEqualizer() {
   if (!header || !actions) return;
   const wrap = document.createElement("div");
   wrap.className = "casino-eq";
+  wrap.innerHTML = `<div class="casino-eq-label">CASINO</div>`;
   eqCanvas = document.createElement("canvas");
   wrap.appendChild(eqCanvas);
   header.insertBefore(wrap, actions);
