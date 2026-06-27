@@ -11,6 +11,52 @@ function isV2() {
   return currentUser?.designVersion === "v2";
 }
 
+// Short vibey word shown next to a player's points (for laughs among friends).
+// Deterministic per (match+nick) so it stays put across re-renders.
+const VIBES = {
+  // +5 — точный счёт + лучший игрок (максимум). Превосходные.
+  top: [
+    "имба","красава","гений","топчик","бог","машина","легенда","монстр","читер","ванга",
+    "оракул","пророк","маэстро","гуру","профи","снайпер","король","царь","босс","чемп",
+    "элита","шедевр","пушка","бомба","ракета","космос","гигачад","сигма","голова","мозг",
+    "аналитик","ясновидящий","прорицатель","шик","блеск","идеал","эталон","флекс","изи","абсолют",
+    "феномен","талант","апофеоз","нострадамус","титан","вседержитель","краш","в_точку","хайп","голд",
+  ],
+  // +3
+  good: [
+    "шаришь","огонь","могёшь","база","респект","неплохо","достойно","чётко","молодец","умница",
+    "лайк","плюсую","годнота","кайф","смак","вкусно","сочно","мощно","дерзко","бодро",
+    "крепко","толково","грамотно","умный","шарящий","настиле","недурно","годно","хорош","силён",
+    "орёл","ферзь","спец","знаток","бодрячок","зачёт","класс","супер","отлично","делишки",
+    "по_красоте","в_кассу","смело","уверенно","солидно","хват","смекалка","напор","четенько","заряд",
+  ],
+  // +1..2
+  ok: [
+    "норм","сойдёт","чутка","нормас","окей","ладно","пойдёт","скромно","бывает","такое",
+    "серединка","средне","чуток","капельку","слегка","едва","впритык","рандом","наугад","фартануло",
+    "повезло","прибавил","частично","краем","негусто","минимум","бедновато","кое-как","сносно","терпимо",
+    "ничё","мелочь","копейки","дробь","плюсик","нааа","чуть","краешком","полумера","нейтрал",
+    "так-сяк","ниже_среднего","катит","на_расслабоне","полушаг","капля","зачаток","еле-еле","ну_ок","оценочно",
+  ],
+  // 0 — позор/роаст (сайт «Отсос!», так что можно поострее)
+  zero: [
+    "кринж","лох","мимо","позор","днище","соси","дно","лошара","провал","фиаско",
+    "фейл","мисс","промах","пусто","голяк","обнял","слабак","аутсайдер","бомж","рукожоп",
+    "криворукий","бездарь","профан","ноунейм","клоун","цирк","грустно","печаль","боль","рип",
+    "капут","труп","ливни","удали","мда","кек","зеро","ноль","бубль","отвал",
+    "шляпа","мусор","трэш","кринжанул","неоч","тильт","баран","соснул","всё_мимо","в_молоко",
+  ],
+};
+function vibeWord(pts, seed) {
+  const arr = pts >= 5 ? VIBES.top : pts >= 3 ? VIBES.good : pts >= 1 ? VIBES.ok : VIBES.zero;
+  let h = 0; const s = String(seed);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return arr[Math.abs(h) % arr.length];
+}
+function vibeCell(pts, seed) {
+  return `<span class="v2rc-vibe ${pts > 0 ? "v2rc-vibe--pos" : "v2rc-vibe--bad"}">${vibeWord(pts, seed)}</span>`;
+}
+
 const TEAM_FLAGS = {
   // Europe
   "Albania": "al", "Andorra": "ad", "Armenia": "am",
@@ -804,16 +850,17 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const actualBestHtml = actualBestList.map((p) => `${escapeHtml(p)}${ratingTag(ratings, p)}`).join(" / ") || "—";
 
   // One aligned row: who | score | player | pts
-  const row = (cls, who, score, playerHtml, ptsHtml) => `
+  const row = (cls, who, score, playerHtml, vibeHtml, ptsHtml) => `
     <div class="v2rc-row ${cls}">
       <span class="v2rc-who">${who}</span>
       <span class="v2rc-score">${escapeHtml(score)}</span>
       <span class="v2rc-player">${playerHtml}</span>
+      ${vibeHtml}
       <span class="v2rc-pts">${ptsHtml}</span>
     </div>`;
 
   const labelRow = row("v2rc-row--label",
-    "", "счёт", "<span>лучший игрок</span>", "<span>очки</span>");
+    "", "счёт", "<span>лучший игрок</span>", `<span class="v2rc-vibe"></span>`, "<span>очки</span>");
 
   // My bet
   const pred = me?.matches?.[match.id];
@@ -822,6 +869,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const myPlayer = pred?.bestPlayer ? escapeHtml(pred.bestPlayer) + ratingTag(ratings, pred.bestPlayer) : "—";
   const myPts = calculatePointsForMatch(pred, actual).total;
   const myRow = row("v2rc-row--mine", "ТЫ", myScore, myPlayer,
+    vibeCell(myPts, match.id + (me?.nickname || "")),
     `<span class="${myPts > 0 ? "v2rc-pos" : ""}">${fmtPts(myPts)}</span>`);
 
   // Everyone else who bet — same columns, sorted by points
@@ -842,6 +890,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
       <summary class="v2rc-others-sum">Ставки участников (${others.length})</summary>
       <div class="v2rc-grid">
         ${others.map((o) => row("v2rc-row--other", escapeHtml(o.nick), o.score, o.player,
+            vibeCell(o.pts, match.id + o.nick),
             `<span class="${o.pts > 0 ? "v2rc-pos" : "v2rc-muted"}">${fmtPts(o.pts)}</span>`)).join("")}
       </div>
     </details>` : "";

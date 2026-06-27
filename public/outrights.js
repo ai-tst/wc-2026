@@ -93,12 +93,15 @@ export function renderOutrightsSection() {
   const dhTeams = parseDarkHorse(o.darkHorse);
   const dhText  = dhTeams.length ? dhTeams.join(", ") : "—";
 
+  const h2 = document.querySelector(".card--outrights h2");
   if (isV2()) {
+    if (h2) h2.textContent = "Долгосрочные ставки";
     const winnerHtml = (o.winner ? ruFlag(o.winner) : "") + escapeHtml(o.winner || "—");
     const dhHtml = dhTeams.length
       ? dhTeams.map((t) => `<span class="oc-dh">${ruFlag(t)}${escapeHtml(t)}</span>`).join("")
       : "—";
     display.innerHTML = `
+      <div class="oc-mine-label">Твоя</div>
       <div class="outrights-compact">
         <span class="oc-item"><span class="oc-label">Чемпион</span>${winnerHtml}</span>
         <span class="oc-item"><span class="oc-label">Лучший игрок</span>${escapeHtml(o.bestPlayer || "—")}</span>
@@ -106,6 +109,7 @@ export function renderOutrightsSection() {
         <span class="oc-item"><span class="oc-label">Уёбищные</span>${dhHtml}</span>
       </div>`;
   } else {
+    if (h2) h2.textContent = "Ваши долгосрочные ставки";
     display.innerHTML = `
       <div class="outrights-item"><span class="label">Победитель ЧМ</span><span class="value">${escapeHtml(o.winner)}</span></div>
       <div class="outrights-item"><span class="label">Лучший игрок</span><span class="value">${escapeHtml(o.bestPlayer)}</span></div>
@@ -265,11 +269,11 @@ export function renderAllOutrights() {
     const playerDH = parseDarkHorse(o.darkHorse);
     const dhCells  = playerDH.map((t) => {
       const hit = actualDH.some((a) => eq(a, t));
-      return `<span class="${hit ? "check-correct" : ""}">${escapeHtml(t)}</span>`;
+      return `<span class="${hit ? "check-correct" : ""}" style="white-space:nowrap">${ruFlag(t)}${escapeHtml(t)}</span>`;
     }).join(" · ") || "—";
     return `<tr>
       <td>${escapeHtml(u.nickname)}</td>
-      <td class="${eq(o.winner,     ao.winner)     ? "check-correct" : ""}">${escapeHtml(o.winner     || "—")}</td>
+      <td class="${eq(o.winner,     ao.winner)     ? "check-correct" : ""}">${o.winner ? ruFlag(o.winner) : ""}${escapeHtml(o.winner || "—")}</td>
       <td class="${eq(o.bestPlayer, ao.bestPlayer) ? "check-correct" : ""}">${escapeHtml(o.bestPlayer || "—")}</td>
       <td class="${eq(o.topScorer,  ao.topScorer)  ? "check-correct" : ""}">${escapeHtml(o.topScorer  || "—")}</td>
       <td>${dhCells}</td>

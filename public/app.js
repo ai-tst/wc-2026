@@ -13,6 +13,7 @@ import {
 } from "./outrights.js";
 import { renderMatches, renderMatchResults, renderPlayerProfile } from "./matches.js";
 import { renderScoreboard } from "./scoreboard.js";
+import { renderStats } from "./stats.js";
 import { fetchMatchesFromSportDb } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
@@ -57,6 +58,7 @@ async function loadMatches(dateOverride) {
   renderMatches();
   renderMatchResults();
   renderScoreboard();
+  renderStats();
   scheduleRefreshIfLive();
 }
 
@@ -85,6 +87,7 @@ async function refreshLeaderboard() {
     renderMatches();       // re-render to show all participants' bets on live/ended matches
     renderMatchResults();
     renderScoreboard();
+    renderStats();
     renderAllOutrights();
     if (currentUser?.isAdmin) {
       renderActualOutrights();
