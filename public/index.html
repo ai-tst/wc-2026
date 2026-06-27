@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Отсос!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" />
+  </head>
+  <body>
+    <div class="app">
+      <section id="view-auth" class="view view--centered hidden">
+        <div class="auth-card card">
+          <header class="auth-header">
+            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo" />
+            <h1>Отсос!</h1>
+            <p class="muted small">Зарегайся или войди</p>
+          </header>
+          <div class="auth-tabs">
+            <button type="button" class="auth-tab auth-tab--active" data-tab="register">Зарегаться</button>
+            <button type="button" class="auth-tab" data-tab="login">Войти</button>
+          </div>
+          <form id="register-form" class="auth-form">
+            <h2>Регистрация</h2>
+            <div class="form-section">
+              <div class="form-grid form-grid--1">
+                <label>Твой ник, бро<input type="text" id="reg-nickname" required minlength="2" /></label>
+                <label>Пароль<input type="password" id="reg-password" required minlength="4" /></label>
+                <label>Повтори пароль<input type="password" id="reg-password-confirm" required minlength="4" /></label>
+              </div>
+            </div>
+            <div class="form-section form-section--passport">
+              <h3>Введи свои паспортные данные</h3>
+              <div class="form-grid">
+                <label>Полное имя<input type="text" id="reg-fullname" required /></label>
+                <label>Серия и номер<input type="text" id="reg-passport-number" required /></label>
+                <label>Кем выдан<input type="text" id="reg-passport-issued" required /></label>
+                <label>Дата выдачи<input type="date" id="reg-passport-date" required /></label>
+              </div>
+            </div>
+            <p id="register-error" class="form-error hidden"></p>
+            <button type="submit" class="btn-full">Ебашим!</button>
+          </form>
+          <form id="login-form" class="auth-form hidden">
+            <h2>Войти</h2>
+            <div class="form-grid form-grid--1">
+              <label>Ник<input type="text" id="login-nickname" required /></label>
+              <label>Пароль<input type="password" id="login-password" required /></label>
+            </div>
+            <p id="login-error" class="form-error hidden"></p>
+            <button type="submit" class="btn-full">Войти</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-onboarding" class="view view--centered hidden">
+        <div class="auth-card card">
+          <header class="auth-header">
+            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo" />
+            <h1>Привет, <span id="onboarding-nickname"></span>!</h1>
+            <p class="muted">Го ща сделаешь ставки на весь ЧМ</p>
+          </header>
+          <form id="onboarding-form" class="outrights-form">
+            <div class="form-grid">
+              <div class="form-field-block">
+                <span class="field-label">Победитель ЧМ <span class="muted small">(+8)</span></span>
+                <div id="onb-winner-selector" class="wcs-container"></div>
+              </div>
+              <div class="form-field-block">
+                <span class="field-label">Лучший игрок турнира <span class="muted small">(+8)</span></span>
+                <div id="onb-bp-selector" class="wcs-container"></div>
+              </div>
+              <div class="form-field-block">
+                <span class="field-label">Лучший бомбардир <span class="muted small">(+5)</span></span>
+                <div id="onb-ts-selector" class="wcs-container"></div>
+              </div>
+              <div class="form-field-block">
+                <span class="field-label">Самая уёбищная команда <span class="muted small">(3 команды, +3 за каждую угаданную)</span></span>
+                <div id="onb-dark-horse-selector" class="dark-horse-selector"></div>
+              </div>
+            </div>
+            <p id="onboarding-error" class="form-error hidden"></p>
+            <button type="submit" class="btn-full">Го</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-main" class="view hidden">
+        <header class="main-header">
+          <div class="main-header__brand">
+            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo wc-logo--header" />
+            <div>
+              <h1>Отсос!</h1>
+              <p class="muted small">Привет, <strong id="main-nickname"></strong>!</p>
+            </div>
+          </div>
+          <button type="button" id="logout-btn" class="secondary-btn">Выйти</button>
+        </header>
+        <main class="layout">
+          <section class="card card--outrights">
+            <div class="card-header-row">
+              <div>
+                <h2>Ваши долгосрочные ставки</h2>
+                <p id="outrights-deadline-hint" class="muted small"></p>
+              </div>
+              <button type="button" id="edit-outrights-btn" class="secondary-btn hidden">Edit</button>
+            </div>
+            <div id="outrights-display" class="outrights-display"></div>
+            <form id="main-outrights-form" class="outrights-form hidden">
+              <div class="form-grid">
+                <div class="form-field-block">
+                  <span class="field-label">Победитель ЧМ <span class="muted small">(+8)</span></span>
+                  <div id="main-winner-selector" class="wcs-container"></div>
+                </div>
+                <div class="form-field-block">
+                  <span class="field-label">Лучший игрок турнира <span class="muted small">(+8)</span></span>
+                  <div id="main-bp-selector" class="wcs-container"></div>
+                </div>
+                <div class="form-field-block">
+                  <span class="field-label">Лучший бомбардир <span class="muted small">(+5)</span></span>
+                  <div id="main-ts-selector" class="wcs-container"></div>
+                </div>
+                <div class="form-field-block">
+                  <span class="field-label">Самая уёбищная команда <span class="muted small">(3 команды, +3 за каждую угаданную)</span></span>
+                  <div id="main-dark-horse-selector" class="dark-horse-selector"></div>
+                </div>
+              </div>
+              <div class="actions">
+                <button type="submit">Сохранить</button>
+                <button type="button" id="cancel-outrights-btn" class="secondary-btn">Отмена</button>
+              </div>
+            </form>
+          </section>
+
+          <div class="main-grid">
+            <section class="card">
+              <h2>Матчи сёдня</h2>
+              <p class="muted small">Исход +1, точный счёт +3, лучший игрок +2.</p>
+              <div id="matches-list" class="matches-list"></div>
+            </section>
+            <section class="card">
+              <h2>Турнирная таблица</h2>
+              <div class="scoreboard-table-wrapper">
+                <table class="scoreboard-table">
+                  <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
+                  <tbody id="scoreboard-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <section class="card card--results">
+            <div class="card-header-row">
+              <div>
+                <h2>Результаты матчей</h2>
+                <p class="muted small">Завершённые матчи и заработанные очки.</p>
+              </div>
+              <div class="results-actions">
+                <button type="button" id="recalculate-btn" class="secondary-btn">Пересчитать</button>
+                <button type="button" id="toggle-results-btn" class="secondary-btn results-toggle" title="Свернуть/развернуть">▲</button>
+              </div>
+            </div>
+            <div id="match-results-list" class="match-results-list"></div>
+          </section>
+
+          <section id="all-outrights-section" class="card hidden">
+            <details>
+              <summary class="all-outrights-summary">Долгосрочные ставки</summary>
+              <div id="all-outrights-list"></div>
+            </details>
+          </section>
+
+          <div id="admin-panel" class="hidden">
+            <details class="card card--admin">
+              <summary>⚙ Панель организатора</summary>
+
+              <h3 class="admin-subtitle">Фактические итоги турнира</h3>
+              <p class="muted small">Введите результаты — очки за долгосрочные ставки начислятся автоматически.</p>
+              <form id="actual-outrights-form" class="outrights-form">
+                <div class="form-grid">
+                  <div class="form-field-block">
+                    <span class="field-label">Победитель ЧМ <span class="muted small">(+8)</span></span>
+                    <div id="actual-winner-selector" class="wcs-container"></div>
+                  </div>
+                  <div class="form-field-block">
+                    <span class="field-label">Лучший игрок <span class="muted small">(+8)</span></span>
+                    <div id="actual-bp-selector" class="wcs-container"></div>
+                  </div>
+                  <div class="form-field-block">
+                    <span class="field-label">Лучший бомбардир <span class="muted small">(+5)</span></span>
+                    <div id="actual-ts-selector" class="wcs-container"></div>
+                  </div>
+                  <div class="form-field-block">
+                    <span class="field-label">Тёмные лошадки <span class="muted small">(3 команды, +3 за каждую)</span></span>
+                    <div id="actual-dark-horse-selector" class="dark-horse-selector"></div>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button type="submit">Сохранить</button>
+                </div>
+              </form>
+
+              <h3 class="admin-subtitle">Ставки участников</h3>
+              <div id="admin-players-list"></div>
+
+              <div class="admin-db-links">
+                <a href="/api/admin/overview" target="_blank" class="secondary-btn admin-db-btn">
+                  Выгрузить БД (JSON)
+                </a>
+              </div>
+            </details>
+          </div>
+        </main>
+      </section>
+
+      <section id="view-player-profile" class="view hidden">
+        <header class="main-header">
+          <div class="main-header__brand">
+            <img src="wc2026-logo.png" alt="FIFA World Cup 2026" class="wc-logo wc-logo--header" />
+            <div>
+              <h1>Отсос!</h1>
+              <p class="muted small">Ставки: <strong id="profile-nickname"></strong></p>
+            </div>
+          </div>
+          <button type="button" id="profile-back-btn" class="secondary-btn">← Назад</button>
+        </header>
+        <main class="layout">
+          <section class="card">
+            <h2>История ставок на матчи</h2>
+            <div id="profile-match-list" class="match-results-list"></div>
+          </section>
+        </main>
+      </section>
+    </div>
+    <footer class="site-footer">
+      <img src="donate.png" alt="Donate" class="donate-img" />
+      <p class="donate-text">+7-977-265-31-55 ПСБ</p>
+    </footer>
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>

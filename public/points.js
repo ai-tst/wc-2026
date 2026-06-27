@@ -1,0 +1,107 @@
+import { state, activeMatches } from "./store.js";
+import { parseDarkHorse } from "./utils.js";
+
+function normalizePlayerStr(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function playerNamesMatch(a, b) {
+  if (!a || !b) return false;
+  const na = normalizePlayerStr(a);
+  const nb = normalizePlayerStr(b);
+  if (na === nb) return true;
+  const pa = na.split(/\s+/);
+  const pb = nb.split(/\s+/);
+  // Last names must match
+  if (pa[pa.length - 1] !== pb[pb.length - 1]) return false;
+  const fa = pa[0], fb = pb[0];
+  // Same first name + same last name, even if middle names differ
+  // e.g. "Vinicius Junior" matches "Vinicius Jose Paixao de Oliveira Junior"
+  if (fa === fb) return true;
+  // Handle abbreviated first name: "J." matches "Julian"
+  if (fa.endsWith(".") && fb.startsWith(fa.slice(0, -1))) return true;
+  if (fb.endsWith(".") && fa.startsWith(fb.slice(0, -1))) return true;
+  return false;
+}
+
+export function calculatePointsForMatch(pred, actual) {
+  if (!pred || !actual) return { total: 0, outcomeCorrect: false, exactScore: false, bestPlayerCorrect: false };
+
+  // Treat empty string as missing score (not as 0)
+  if (pred.home === "" || pred.away === "") {
+    return { total: 0, outcomeCorrect: false, exactScore: false, bestPlayerCorrect: false };
+  }
+
+  const homePred = Number(pred.home);
+  const awayPred = Number(pred.away);
+  const homeAct = Number(actual.home);
+  const awayAct = Number(actual.away);
+
+  if ([homePred, awayPred, homeAct, awayAct].some(Number.isNaN)) {
+    return { total: 0, outcomeCorrect: false, exactScore: false, bestPlayerCorrect: false };
+  }
+
+  const predOutcome = homePred === awayPred ? "draw" : homePred > awayPred ? "home" : "away";
+  const actOutcome = homeAct === awayAct ? "draw" : homeAct > awayAct ? "home" : "away";
+
+  const outcomeCorrect = predOutcome === actOutcome;
+  const exactScore = homePred === homeAct && awayPred === awayAct;
+  // actual.bestPlayer can be a string (admin entry) or array (auto-detected, may have ties)
+  const targets = Array.isArray(actual.bestPlayer) ? actual.bestPlayer : (actual.bestPlayer ? [actual.bestPlayer] : []);
+  const bestPlayerCorrect = targets.length > 0 && targets.some(t => playerNamesMatch(pred.bestPlayer, t));
+
+  let total = 0;
+  if (exactScore) total += 3;
+  else if (outcomeCorrect) total += 1;
+  if (bestPlayerCorrect) total += 2;
+
+  return { total, outcomeCorrect, exactScore, bestPlayerCorrect };
+}
+
+export function calculateOutrightsPoints(playerOutrights, actualOutrights) {
+  if (!playerOutrights || !actualOutrights) return 0;
+  const eq = (a, b) => a && b && a.trim().toLowerCase() === b.trim().toLowerCase();
+  let total = 0;
+  if (eq(playerOutrights.winner, actualOutrights.winner)) total += 8;
+  if (eq(playerOutrights.bestPlayer, actualOutrights.bestPlayer)) total += 8;
+  if (eq(playerOutrights.topScorer, actualOutrights.topScorer)) total += 5;
+  // Dark horse: 3 picks, +3 per correct team
+  const playerDH = parseDarkHorse(playerOutrights.darkHorse);
+  const actualDH = parseDarkHorse(actualOutrights.darkHorse);
+  for (const t of playerDH) {
+    if (actualDH.some((a) => eq(a, t))) total += 3;
+  }
+  return total;
+}
+
+// Returns the actual result for a match, preferring API-provided scores for ended matches.
+// bestPlayer still comes from admin-entered data (no API source for it).
+export function resolveActualResult(match) {
+  const adminEntry = state.actualMatches?.[match.id];
+  const s = Number(match.status);
+  if (s >= 8 && match.homeScore != null && match.awayScore != null) {
+    return {
+      home: String(match.homeScore),
+      away: String(match.awayScore),
+      // admin override → auto-detected from API ratings → empty
+      bestPlayer: adminEntry?.bestPlayer || match.autoBestPlayer || "",
+    };
+  }
+  return adminEntry ?? null;
+}
+
+export function getUserTotalPoints(user) {
+  let total = 0;
+  for (const match of activeMatches) {
+    const pred = user.matches?.[match.id];
+    const actual = resolveActualResult(match);
+    total += calculatePointsForMatch(pred, actual).total;
+  }
+  total += calculateOutrightsPoints(user.outrights, state.actualOutrights);
+  total += user.bonusPoints || 0;
+  return total;
+}
