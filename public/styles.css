@@ -576,6 +576,22 @@ button:active {
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.main-header__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.design-toggle {
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .design-toggle { font-size: 12px; padding-inline: 10px; }
 }
 
 .main-header h1 {
@@ -1339,4 +1355,213 @@ input:disabled {
   font-weight: 700;
   color: #facc15;
   margin-left: 3px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DESIGN v2 — stadium-night skin. Scoped under body.design-v2 so v1 is 100%
+   untouched. Green actions (kept from v1), gold highlights, big logo, and an
+   aligned result table so the eye never darts. Opt-in per user via the toggle.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+body.design-v2 {
+  --bg:           #0b0a1f;
+  --bg-soft:      #15123a;
+  --bg-softer:    #1c1840;
+  --accent:       #22c55e;   /* green — primary action (kept from v1) */
+  --accent-strong:#16a34a;
+  --accent-soft:  rgba(34, 197, 94, 0.16);
+  --gold:         #ffd23f;   /* highlight: scores, stars, your nickname */
+  --text:         #f4f1ff;
+  --muted:        #a9a3d4;
+  --border:       #2e2960;
+  --danger:       #ff4d6d;
+  --radius-lg:    20px;
+  --radius-md:    14px;
+
+  background:
+    radial-gradient(circle at 12% -5%, rgba(124, 58, 237, 0.38) 0, transparent 45%),
+    radial-gradient(circle at 88% 8%,  rgba(56, 189, 248, 0.22) 0, transparent 45%),
+    radial-gradient(circle at 50% 108%, rgba(34, 197, 94, 0.26) 0, transparent 55%),
+    #0b0a1f;
+}
+
+/* Sporty display font for headings + the big scores */
+body.design-v2 h1,
+body.design-v2 h2,
+body.design-v2 .v2rc-row--result .v2rc-score,
+body.design-v2 .result-card__actual-score {
+  font-family: "Russo One", var(--font-main);
+  letter-spacing: 0.01em;
+}
+
+/* ── Header: big logo, readable greeting, a clear "what to do" line ──────────── */
+body.design-v2 .main-header { align-items: center; }
+body.design-v2 .main-header__brand { gap: 16px; align-items: center; }
+body.design-v2 .main-header__brand h1 { display: none; }
+body.design-v2 .wc-logo--header {
+  width: 104px;
+  border-radius: 22px;
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.4), 0 14px 36px rgba(124, 58, 237, 0.55);
+}
+body.design-v2 .main-header__brand p {        /* greeting */
+  font-size: 20px;
+  color: var(--text);
+  font-weight: 700;
+  margin: 0;
+}
+body.design-v2 #main-nickname { color: var(--gold); }
+body.design-v2 .main-header__tagline {
+  display: block;
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.main-header__tagline { display: none; }       /* hidden in v1 */
+
+body.design-v2 .auth-header .wc-logo,
+body.design-v2 #view-onboarding .wc-logo {
+  width: 176px;
+  border-radius: 28px;
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.4), 0 18px 45px rgba(124, 58, 237, 0.55);
+}
+
+/* Cards / panels */
+body.design-v2 .card {
+  background: linear-gradient(160deg, rgba(30, 26, 70, 0.92), rgba(15, 13, 40, 0.92));
+  border: 1px solid rgba(168, 163, 212, 0.22);
+  box-shadow: 0 18px 50px rgba(8, 6, 26, 0.7);
+}
+
+/* Buttons stay green (v1 look). Only secondary + the toggle get restyled. */
+body.design-v2 .secondary-btn {
+  background: rgba(28, 24, 64, 0.92);
+  color: var(--text);
+  border: 1px solid rgba(168, 163, 212, 0.4);
+  box-shadow: none;
+}
+body.design-v2 .design-toggle {
+  background: linear-gradient(135deg, #7c3aed, #db2777);
+  color: #fff;
+  border: none;
+}
+
+/* Inputs */
+body.design-v2 input,
+body.design-v2 .wcs-input {
+  background: rgba(15, 13, 40, 0.85);
+  border: 1px solid rgba(168, 163, 212, 0.3);
+  border-radius: 10px;
+}
+body.design-v2 input:focus,
+body.design-v2 .wcs-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.4);
+}
+
+/* Match rows → clean vertical card so team names never squish/wrap weirdly */
+body.design-v2 .match-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(160deg, rgba(38, 32, 84, 0.9), rgba(18, 15, 46, 0.92));
+  border: 1px solid rgba(168, 163, 212, 0.2);
+}
+body.design-v2 .match-teams { font-size: 15px; }
+body.design-v2 .result-card {
+  background: linear-gradient(160deg, rgba(38, 32, 84, 0.9), rgba(18, 15, 46, 0.92));
+  border: 1px solid rgba(168, 163, 212, 0.2);
+}
+
+/* Scoreboard: subtle gold tint on the leader, green on your own row */
+body.design-v2 .scoreboard-table tbody tr:first-child {
+  box-shadow: inset 0 0 0 9999px rgba(255, 210, 63, 0.07);
+}
+body.design-v2 .scoreboard-row--me td { color: #7CFFB2; }
+
+/* Persistent "bet saved" indicator (v2 only) */
+body.design-v2 .bet-saved-note {
+  width: 100%;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+body.design-v2 .bet-saved-note--on { color: #7CFFB2; font-weight: 700; }
+
+/* Collapsible participants panel inside live "Матчи сёдня" rows */
+body.design-v2 .match-all-bets--collapsible {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(168, 163, 212, 0.2);
+}
+body.design-v2 .all-bets-summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  list-style: none;
+}
+body.design-v2 .all-bets-summary::-webkit-details-marker { display: none; }
+body.design-v2 .all-bets-summary::before { content: "▶ "; font-size: 10px; }
+body.design-v2 details[open] > .all-bets-summary::before { content: "▼ "; }
+body.design-v2 .all-bets-body { margin-top: 6px; }
+
+/* ── v2 result card: one aligned table — ИТОГ / ТЫ / участники share columns ─── */
+body.design-v2 .v2rc { display: flex; flex-direction: column; gap: 8px; }
+.v2rc-head { display: flex; flex-direction: column; gap: 2px; }
+.v2rc-teams { font-weight: 800; font-size: 16px; }
+.v2rc-type { font-size: 12px; color: var(--muted); }
+
+.v2rc-grid { display: flex; flex-direction: column; }
+.v2rc-row {
+  display: grid;
+  grid-template-columns: 58px 50px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+.v2rc-who { font-size: 12px; font-weight: 700; color: var(--text); }
+.v2rc-score { font-weight: 800; white-space: nowrap; }
+.v2rc-player { font-size: 13px; color: var(--text); line-height: 1.25; }
+.v2rc-pts { text-align: right; font-weight: 800; color: var(--muted); }
+
+.v2rc-row--label { padding: 2px 8px; }
+.v2rc-row--label span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); font-weight: 600;
+}
+
+.v2rc-row--result {
+  border-radius: 10px;
+  background: rgba(255, 210, 63, 0.10);
+  margin-bottom: 2px;
+}
+.v2rc-row--result .v2rc-who    { color: var(--gold); }
+.v2rc-row--result .v2rc-score  { color: var(--gold); font-size: 19px; }
+.v2rc-row--result .v2rc-player { font-weight: 600; }
+
+.v2rc-row--mine {
+  border-radius: 10px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.v2rc-row--mine .v2rc-who   { color: #7CFFB2; }
+.v2rc-row--mine .v2rc-score { font-size: 17px; }
+
+.v2rc-pos   { color: #7CFFB2; }
+.v2rc-muted { color: var(--muted); }
+
+.v2rc-others { margin-top: 2px; }
+.v2rc-others-sum {
+  cursor: pointer; font-size: 12px; font-weight: 700; color: var(--accent);
+  list-style: none; padding: 6px 0;
+}
+.v2rc-others-sum::-webkit-details-marker { display: none; }
+.v2rc-others-sum::before { content: "▶ "; font-size: 10px; }
+details[open] > .v2rc-others-sum::before { content: "▼ "; }
+.v2rc-row--other .v2rc-who { font-weight: 600; }
+.v2rc-row--other:nth-child(even) { background: rgba(255, 255, 255, 0.03); border-radius: 8px; }
+
+@media (max-width: 480px) {
+  .v2rc-row { grid-template-columns: 50px 42px 1fr 38px; gap: 6px; padding: 6px 4px; }
 }

@@ -20,6 +20,7 @@ export const apiRegister = data  => post("/api/auth/register", data);
 export const apiLogin    = (nickname, password) => post("/api/auth/login", { nickname, password });
 export const apiLogout   = ()    => post("/api/auth/logout");
 export const apiMe       = ()    => get("/api/auth/me");
+export const apiSetDesignVersion = version => put("/api/me/design-version", { version });
 
 // Outrights (user long-term picks)
 export const apiGetOutrights  = ()    => get("/api/outrights");

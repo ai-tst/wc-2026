@@ -7,6 +7,10 @@ import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api
 
 const ERROR_MSG = "Да отсоси ты хуй бля";
 
+function isV2() {
+  return currentUser?.designVersion === "v2";
+}
+
 const TEAM_FLAGS = {
   // Europe
   "Albania": "al", "Andorra": "ad", "Armenia": "am",
@@ -167,17 +171,33 @@ export function renderMatches() {
   const container       = $("matches-list");
   const actualContainer = $("actual-matches-list");
 
-  // Ended matches disappear from "today" ~24h after completion (start + 26h)
-  const cutoff = Date.now() - 26 * 3600 * 1000;
-  const visibleMatches = activeMatches.filter((m) => {
-    if (getMatchPhase(m) !== "ended") return true;
-    try { return new Date(m.dateTimeRaw).getTime() >= cutoff; } catch { return true; }
-  });
+  let visibleMatches;
+  if (isV2()) {
+    // v2: "Матчи сёдня" = live (top) + still-bettable upcoming only.
+    // Finished matches live exclusively in "Результаты" → no more duplication.
+    const order = { live: 0, upcoming: 1, ended: 2 };
+    visibleMatches = activeMatches
+      .filter((m) => getMatchPhase(m) !== "ended")
+      .sort((a, b) => {
+        const pa = order[getMatchPhase(a)], pb = order[getMatchPhase(b)];
+        if (pa !== pb) return pa - pb;
+        return String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw));
+      });
+  } else {
+    // v1: original behaviour — ended matches linger in the list ~26h
+    const cutoff = Date.now() - 26 * 3600 * 1000;
+    visibleMatches = activeMatches.filter((m) => {
+      if (getMatchPhase(m) !== "ended") return true;
+      try { return new Date(m.dateTimeRaw).getTime() >= cutoff; } catch { return true; }
+    });
+  }
 
   if (container) {
     container.innerHTML = "";
     if (!visibleMatches.length) {
-      container.innerHTML = `<p class="muted">Матчи пока недоступны</p>`;
+      container.innerHTML = isV2()
+        ? `<p class="muted">Сейчас нет live и открытых для ставок матчей. Завершённые ищи в «Результатах» ниже 👇</p>`
+        : `<p class="muted">Матчи пока недоступны</p>`;
     } else {
       visibleMatches.forEach((m) => container.appendChild(createMatchRow(m, false)));
     }
@@ -191,6 +211,7 @@ export function renderMatches() {
 
 export function createMatchRow(match, isActual) {
   const phase = getMatchPhase(match);
+  const v2    = isV2();
   const row   = document.createElement("div");
   row.className = "match-row";
 
@@ -325,6 +346,14 @@ export function createMatchRow(match, isActual) {
       confirmBtn.textContent = hasPrediction ? "Изменить ставку" : "Подтвердить ставку";
       inputs.appendChild(confirmBtn);
 
+      // v2: persistent saved indicator (doesn't vanish after 2s like the button flash)
+      const savedNote = v2 ? document.createElement("div") : null;
+      if (savedNote) {
+        savedNote.className = "bet-saved-note" + (hasPrediction ? " bet-saved-note--on" : "");
+        savedNote.textContent = hasPrediction ? "✓ ставка принята · можно менять" : "ставка ещё не сделана";
+        inputs.appendChild(savedNote);
+      }
+
       confirmBtn.addEventListener("click", async () => {
         const data = readData();
 
@@ -362,6 +391,10 @@ export function createMatchRow(match, isActual) {
         currentUser.matches[match.id] = data;
         try {
           await apiSavePrediction(match.id, data);
+          if (savedNote) {
+            savedNote.className = "bet-saved-note bet-saved-note--on";
+            savedNote.textContent = "✓ ставка принята · можно менять";
+          }
           confirmBtn.className = "confirm-bet-btn confirm-bet-btn--saved";
           confirmBtn.textContent = "✓ Ставка принята";
           setTimeout(() => {
@@ -403,14 +436,14 @@ export function createMatchRow(match, isActual) {
 
   // Show all participants' bets once match has started
   if (phase !== "upcoming") {
-    const allBets = createAllBetsSection(match);
+    const allBets = createAllBetsSection(match, v2);
     if (allBets) row.appendChild(allBets);
   }
 
   return row;
 }
 
-function createAllBetsSection(match) {
+function createAllBetsSection(match, collapsible = false) {
   if (!state.users?.length) return null;
 
   const entries = state.users
@@ -422,17 +455,25 @@ function createAllBetsSection(match) {
 
   if (!entries.length) return null;
 
-  const section = document.createElement("div");
-  section.className = "match-all-bets";
-  section.innerHTML = `
-    <div class="all-bets-title">Ставки участников</div>
-    ${entries.map((e) => `
+  const rowsHtml = entries.map((e) => `
       <div class="all-bets-row">
         <span class="all-bets-nick">${escapeHtml(e.nickname)}</span>
         <span class="all-bets-score">${e.home ?? "—"}:${e.away ?? "—"}</span>
-        ${e.bestPlayer ? `<span class="all-bets-player">${escapeHtml(e.bestPlayer)}</span>` : ""}
-      </div>`).join("")}
-  `;
+        <span class="all-bets-player">${e.bestPlayer ? escapeHtml(e.bestPlayer) : "—"}</span>
+      </div>`).join("");
+
+  if (collapsible) {
+    const details = document.createElement("details");
+    details.className = "match-all-bets match-all-bets--collapsible";
+    details.innerHTML =
+      `<summary class="all-bets-summary">Ставки участников (${entries.length})</summary>` +
+      `<div class="all-bets-body">${rowsHtml}</div>`;
+    return details;
+  }
+
+  const section = document.createElement("div");
+  section.className = "match-all-bets";
+  section.innerHTML = `<div class="all-bets-title">Ставки участников</div>${rowsHtml}`;
   return section;
 }
 
@@ -522,7 +563,14 @@ export async function renderMatchResults() {
   const ratingsMap = Object.fromEntries(ended.map((m, i) => [m.id, ratingsArr[i]]));
 
   container.innerHTML = "";
-  ended.forEach((m) => container.appendChild(createResultCard(m, ratingsMap[m.id] || {})));
+  const v2 = isV2();
+  const list = v2
+    ? [...ended].sort((a, b) => String(b.dateTimeRaw).localeCompare(String(a.dateTimeRaw)))
+    : ended;
+  list.forEach((m) => container.appendChild(
+    v2 ? createResultCardV2(m, ratingsMap[m.id] || {}, currentUser, state.users)
+       : createResultCard(m, ratingsMap[m.id] || {})
+  ));
 }
 
 function ratingTag(ratings, name) {
@@ -557,7 +605,11 @@ export async function renderPlayerProfile(nickname, containerEl) {
   const ratingsMap = Object.fromEntries(ended.map((m, i) => [m.id, ratingsArr[i]]));
 
   containerEl.innerHTML = "";
-  ended.forEach((m) => containerEl.appendChild(createResultCard(m, ratingsMap[m.id] || {}, user)));
+  const v2 = isV2();
+  ended.forEach((m) => containerEl.appendChild(
+    v2 ? createResultCardV2(m, ratingsMap[m.id] || {}, user, state.users)
+       : createResultCard(m, ratingsMap[m.id] || {}, user)
+  ));
 }
 
 function createResultCard(match, ratings = {}, viewUser = null) {
@@ -605,6 +657,81 @@ function createResultCard(match, ratings = {}, viewUser = null) {
         ${hints.length ? `<span class="result-card__hints muted small">${hints.join(" + ")}</span>` : ""}
       </div>
     </div>
+  `;
+  return card;
+}
+
+// ── v2 result card: one aligned table. "ИТОГ" (real result), "ТЫ" (your bet),
+//    then participants — all share the same score / player / points columns so
+//    the eye reads straight down instead of darting around. ───────────────────
+function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = []) {
+  const me     = viewUser ?? currentUser;
+  const actual = resolveActualResult(match);
+  const typeLine = [match.league, match.group].filter(Boolean).join(" · ");
+  const actualScore = `${match.homeScore ?? "?"}:${match.awayScore ?? "?"}`;
+  const fmtPts = (t) => (t > 0 ? `+${t}` : "0");
+
+  const actualBestRaw  = actual?.bestPlayer || match.autoBestPlayer || "";
+  const actualBestList = Array.isArray(actualBestRaw) ? actualBestRaw : (actualBestRaw ? [actualBestRaw] : []);
+  const actualBestHtml = actualBestList.map((p) => `${escapeHtml(p)}${ratingTag(ratings, p)}`).join(" / ") || "—";
+
+  // One aligned row: who | score | player | pts
+  const row = (cls, who, score, playerHtml, ptsHtml) => `
+    <div class="v2rc-row ${cls}">
+      <span class="v2rc-who">${who}</span>
+      <span class="v2rc-score">${escapeHtml(score)}</span>
+      <span class="v2rc-player">${playerHtml}</span>
+      <span class="v2rc-pts">${ptsHtml}</span>
+    </div>`;
+
+  const labelRow = row("v2rc-row--label",
+    "", "счёт", "<span>лучший игрок</span>", "<span>очки</span>");
+
+  // My bet
+  const pred = me?.matches?.[match.id];
+  const predHas = pred?.home !== "" && pred?.away !== "" && pred?.home != null;
+  const myScore = predHas ? `${pred.home}:${pred.away}` : "—";
+  const myPlayer = pred?.bestPlayer ? escapeHtml(pred.bestPlayer) + ratingTag(ratings, pred.bestPlayer) : "—";
+  const myPts = calculatePointsForMatch(pred, actual).total;
+  const myRow = row("v2rc-row--mine", "ТЫ", myScore, myPlayer,
+    `<span class="${myPts > 0 ? "v2rc-pos" : ""}">${fmtPts(myPts)}</span>`);
+
+  // Everyone else who bet — same columns, sorted by points
+  const others = (allUsers || [])
+    .filter((u) => u.nickname !== me?.nickname)
+    .map((u) => ({ u, p: u.matches?.[match.id] }))
+    .filter((x) => x.p && (x.p.home !== "" || x.p.away !== ""))
+    .map((x) => ({
+      nick: x.u.nickname,
+      score: `${x.p.home ?? "—"}:${x.p.away ?? "—"}`,
+      player: x.p.bestPlayer ? escapeHtml(x.p.bestPlayer) + ratingTag(ratings, x.p.bestPlayer) : "—",
+      pts: calculatePointsForMatch(x.p, actual).total,
+    }))
+    .sort((a, b) => b.pts - a.pts);
+
+  const othersHtml = others.length ? `
+    <details class="v2rc-others">
+      <summary class="v2rc-others-sum">Ставки участников (${others.length})</summary>
+      <div class="v2rc-grid">
+        ${labelRow}
+        ${others.map((o) => row("v2rc-row--other", escapeHtml(o.nick), o.score, o.player,
+            `<span class="${o.pts > 0 ? "v2rc-pos" : "v2rc-muted"}">${fmtPts(o.pts)}</span>`)).join("")}
+      </div>
+    </details>` : "";
+
+  const card = document.createElement("div");
+  card.className = "result-card v2rc";
+  card.innerHTML = `
+    <div class="v2rc-head">
+      <div class="v2rc-teams">${withFlag(match.home)} — ${withFlag(match.away)}</div>
+      ${typeLine ? `<div class="v2rc-type">${escapeHtml(typeLine)}</div>` : ""}
+    </div>
+    <div class="v2rc-grid">
+      ${labelRow}
+      ${row("v2rc-row--result", "ИТОГ", actualScore, "⭐ " + actualBestHtml, "")}
+      ${myRow}
+    </div>
+    ${othersHtml}
   `;
   return card;
 }

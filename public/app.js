@@ -16,6 +16,7 @@ import { renderScoreboard } from "./scoreboard.js";
 import { fetchMatchesFromSportDb } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
+  apiSetDesignVersion,
 } from "./api-client.js";
 
 // ── Mock data ────────────────────────────────────────────────────────────────
@@ -219,6 +220,7 @@ async function route() {
   ]);
 
   setCurrentUser({ ...userData, matches: predictions, outrights });
+  applyDesign();
 
   if (!currentUser.onboardingComplete) {
     $("onboarding-nickname").textContent = currentUser.nickname;
@@ -238,8 +240,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupTestControls();
   setupResultsToggle();
   setupPlayerProfile();
+  setupDesignToggle();
   await route();
 });
+
+// ── Design v1/v2 toggle ───────────────────────────────────────────────────────
+function applyDesign() {
+  const v2 = currentUser?.designVersion === "v2";
+  document.body.classList.toggle("design-v2", v2);
+  const btn = $("design-toggle-btn");
+  if (btn) btn.textContent = v2 ? "↩ Старый дизайн" : "✨ Новый дизайн";
+}
+
+function setupDesignToggle() {
+  const btn = $("design-toggle-btn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (!currentUser) return;
+    const next = currentUser.designVersion === "v2" ? "v1" : "v2";
+    currentUser.designVersion = next;
+    applyDesign();
+    // v2 changes list structure → re-render the dynamic sections
+    renderMatches();
+    renderMatchResults();
+    renderScoreboard();
+    try { await apiSetDesignVersion(next); }
+    catch (err) { console.error("[design] save failed:", err); }
+  });
+}
 
 function setupResultsToggle() {
   const btn  = $("toggle-results-btn");
