@@ -106,7 +106,7 @@ export function renderOutrightsSection() {
         <span class="oc-item"><span class="oc-label">Чемпион</span>${winnerHtml}</span>
         <span class="oc-item"><span class="oc-label">Лучший игрок</span>${escapeHtml(o.bestPlayer || "—")}</span>
         <span class="oc-item"><span class="oc-label">Бомбардир</span>${escapeHtml(o.topScorer || "—")}</span>
-        <span class="oc-item"><span class="oc-label">Уёбищные</span>${dhHtml}</span>
+        <span class="oc-item oc-item--dh"><span class="oc-label">Уёбищные</span><span class="oc-dh-list">${dhHtml}</span></span>
       </div>`;
   } else {
     if (h2) h2.textContent = "Ваши долгосрочные ставки";

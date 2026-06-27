@@ -261,14 +261,12 @@ function setupDesignToggle() {
   btn.addEventListener("click", async () => {
     if (!currentUser) return;
     const next = currentUser.designVersion === "v2" ? "v1" : "v2";
-    currentUser.designVersion = next;
-    applyDesign();
-    // v2 changes list structure → re-render the dynamic sections
-    renderMatches();
-    renderMatchResults();
-    renderScoreboard();
+    btn.disabled = true;
+    btn.textContent = "…";
+    // Persist, then hard-reload so the new design applies cleanly (no half-applied styles)
     try { await apiSetDesignVersion(next); }
     catch (err) { console.error("[design] save failed:", err); }
+    location.reload();
   });
 }
 
