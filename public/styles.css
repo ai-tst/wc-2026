@@ -2115,6 +2115,33 @@ body.casino-mode .casino-eq canvas {
 }
 @media (max-width: 760px) { body.casino-mode .casino-eq { display: none; } }
 
+/* Заставка «CASINO» при включении: разноцветные буквы дугой, появляется → растёт → уходит */
+.casino-intro {
+  position: fixed; inset: 0; z-index: 10050;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.casino-intro-word {
+  display: flex;
+  font-family: "Russo One", var(--font-main);
+  font-size: clamp(54px, 17vw, 220px);
+  line-height: 1;
+  animation: casinoIntroPop 2s cubic-bezier(.2, 1.2, .3, 1) forwards;
+}
+.casino-intro-word span {
+  display: inline-block;
+  /* арка: середина выше, края ниже + наклон вдоль дуги */
+  transform: translateY(calc(var(--d2) * 0.13em)) rotate(calc(var(--d) * 9deg));
+  -webkit-text-stroke: 2px rgba(0, 0, 0, 0.25);
+}
+@keyframes casinoIntroPop {
+  0%   { transform: scale(0.2);  opacity: 0; }
+  20%  { transform: scale(1.2);  opacity: 1; }
+  35%  { transform: scale(1);    opacity: 1; }
+  70%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(0.3);  opacity: 0; }
+}
+
 @media (max-width: 560px) {
   .casino-reel { width: 74px; height: 92px; }
   .casino-reel-digit { height: 92px; line-height: 92px; font-size: 56px; }

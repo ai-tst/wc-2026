@@ -36,11 +36,29 @@ function startCasino() {
   casinoOn = true;
   document.body.classList.add("casino-mode");
   if (logoEl) logoEl.src = CASINO_LOGO;
-  startMusic();
+  startMusic();          // музыка сразу, пока высвечивается «КАЗИНО»
+  showIntroSplash();
   ensureAnalyser();
   startEqualizer();
   startCoins();
   coinBurst(90);
+}
+
+// Огромная разноцветная надпись «КАЗИНО» дугой: появляется → растёт → уходит.
+function showIntroSplash() {
+  document.querySelector(".casino-intro")?.remove();
+  const word = "CASINO";
+  const colors = ["#ff2e63", "#ff9a00", "#ffe600", "#27ff64", "#00d4ff", "#b14bff"];
+  const c = (word.length - 1) / 2;
+  const letters = [...word].map((ch, i) => {
+    const d = i - c, col = colors[i % colors.length];
+    return `<span style="color:${col};--d:${d};--d2:${d * d};text-shadow:0 0 26px ${col},0 0 50px ${col}">${ch}</span>`;
+  }).join("");
+  const el = document.createElement("div");
+  el.className = "casino-intro";
+  el.innerHTML = `<div class="casino-intro-word">${letters}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2100);
 }
 
 function stopCasino() {
@@ -177,6 +195,11 @@ function stopEqualizer() {
 }
 
 // ── Монеты со всех сторон (бока + верхние углы) ───────────────────────────────────
+// На телефонах ливень монет лагает — там его полностью отключаем (всё остальное
+// остаётся: радуга, музыка, слот, заставка).
+function coinsDisabled() {
+  return window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 820;
+}
 function rnd(a, b) { return a + Math.random() * (b - a); }
 function spawnCoin(origin) {
   if (document.querySelectorAll(".casino-coin").length > COIN_CAP) return;
@@ -219,7 +242,7 @@ function spawnCoin(origin) {
 }
 
 function startCoins() {
-  if (coinTimer) return;
+  if (coinTimer || coinsDisabled()) return;
   // золото рекой: бока (по 2 с каждой стороны) + оба верхних угла, каждые ~170мс
   coinTimer = setInterval(() => {
     spawnCoin("left"); spawnCoin("left");
@@ -238,6 +261,7 @@ function stopCoins() {
   document.querySelectorAll(".casino-coin").forEach((c) => c.remove());
 }
 function coinBurst(n = 30) {
+  if (coinsDisabled()) return;
   const origins = ["left", "right", "tl", "tr"];
   for (let i = 0; i < n; i++) {
     setTimeout(() => spawnCoin(origins[i % origins.length]), i * 22);
