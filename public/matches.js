@@ -946,12 +946,13 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const ownCard = !viewUser || me === currentUser;
   const canShare = ownCard && predHas;
   const shareRow = canShare
-    ? `<div class="v2rc-share"><button type="button" class="share-btn">📲 Поделиться картинкой</button></div>`
+    ? `<button type="button" class="share-btn" title="Поделиться картинкой" aria-label="Поделиться картинкой">📲</button>`
     : "";
 
   const card = document.createElement("div");
   card.className = "result-card v2rc";
   card.innerHTML = `
+    ${shareRow}
     <div class="v2rc-hero">
       ${typeLine ? `<div class="v2rc-type">${escapeHtml(typeLine)}</div>` : ""}
       <div class="v2rc-scoreline">
@@ -965,7 +966,6 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
       ${labelRow}
       ${myRow}
     </div>
-    ${shareRow}
     ${othersHtml}
   `;
 
