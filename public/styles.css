@@ -2123,14 +2123,15 @@ body.casino-mode .card:nth-child(3n),
 body.casino-mode .matches-list > .match-row:nth-child(3n),
 body.casino-mode .match-results-list > .result-card:nth-child(3n)   { animation-delay: -2.1s; }
 
-/* Падающие монеты */
-.casino-coin {
+/* Падающие монеты — единый canvas-оверлей (раньше были 150 fixed-нод, лагало) */
+.casino-coin-canvas {
   position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   z-index: 9000;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
-  will-change: transform, opacity;
 }
 
 /* Огромная кнопка «НАУГАД БЛЯ» */
