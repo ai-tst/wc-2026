@@ -2,7 +2,7 @@ import { state, currentUser, activeMatches } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
-import { calculatePointsForMatch, resolveActualResult } from "./points.js";
+import { calculatePointsForMatch, resolveActualResult, matchPointsFor } from "./points.js";
 import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api-client.js";
 
 const ERROR_MSG = "Да отсоси ты хуй бля";
@@ -63,7 +63,7 @@ const TEAM_FLAGS = {
   // Europe
   "Albania": "al", "Andorra": "ad", "Armenia": "am",
   "Austria": "at", "Azerbaijan": "az", "Belarus": "by",
-  "Belgium": "be", "Bosnia and Herzegovina": "ba", "Bulgaria": "bg",
+  "Belgium": "be", "Bosnia and Herzegovina": "ba", "Bosnia & Herzegovina": "ba", "Bulgaria": "bg",
   "Croatia": "hr", "Cyprus": "cy",
   "Czech Republic": "cz", "Czechia": "cz",
   "Denmark": "dk", "England": "gb-eng",
@@ -86,7 +86,7 @@ const TEAM_FLAGS = {
   "Serbia": "rs", "Slovakia": "sk",
   "Slovenia": "si", "Spain": "es",
   "Sweden": "se", "Switzerland": "ch",
-  "Turkey": "tr", "Ukraine": "ua",
+  "Turkey": "tr", "Türkiye": "tr", "Turkiye": "tr", "Ukraine": "ua",
   "Wales": "gb-wls",
   // South America
   "Argentina": "ar", "Bolivia": "bo",
@@ -118,7 +118,7 @@ const TEAM_FLAGS = {
   "Algeria": "dz", "Angola": "ao",
   "Benin": "bj", "Botswana": "bw",
   "Burkina Faso": "bf", "Burundi": "bi",
-  "Cameroon": "cm", "Cape Verde": "cv",
+  "Cameroon": "cm", "Cape Verde": "cv", "Cape Verde Islands": "cv",
   "Central African Republic": "cf", "Chad": "td",
   "Comoros": "km", "Congo": "cg",
   "DR Congo": "cd", "Congo DR": "cd",
@@ -471,11 +471,12 @@ export function createMatchRow(match, isActual) {
     if (phase === "ended") {
       const pred   = currentUser.matches?.[match.id];
       const actual = resolveActualResult(match);
-      const { total, outcomeCorrect, exactScore, bestPlayerCorrect } = calculatePointsForMatch(pred, actual);
+      const { total, outcomeCorrect, exactScore, bestPlayerCorrect, bonus } = matchPointsFor(pred, match);
       const hints = [];
       if (exactScore)        hints.push("точный счёт");
       else if (outcomeCorrect) hints.push("исход");
       if (bestPlayerCorrect)  hints.push("игрок");
+      if (bonus > 0)          hints.push(`плей-офф +${bonus}`);
 
       const badge = document.createElement("div");
       badge.className = `match-points-badge ${total > 0 ? "match-points-badge--positive" : ""}`;
@@ -791,8 +792,8 @@ export async function renderPlayerProfile(nickname, containerEl) {
 function createResultCard(match, ratings = {}, viewUser = null) {
   const pred   = (viewUser ?? currentUser)?.matches?.[match.id];
   const actual = resolveActualResult(match);
-  const { total, outcomeCorrect, exactScore, bestPlayerCorrect } =
-    calculatePointsForMatch(pred, actual);
+  const { total, outcomeCorrect, exactScore, bestPlayerCorrect, bonus } =
+    matchPointsFor(pred, match);
 
   const leagueLine = [match.league, match.group].filter(Boolean).join(" · ");
 
@@ -805,6 +806,7 @@ function createResultCard(match, ratings = {}, viewUser = null) {
   if (exactScore)          hints.push("точный счёт");
   else if (outcomeCorrect) hints.push("исход");
   if (bestPlayerCorrect)   hints.push("игрок");
+  if (bonus > 0)           hints.push(`плей-офф +${bonus}`);
 
   const actualBestRaw = actual?.bestPlayer || match.autoBestPlayer || "";
   const actualBestList = Array.isArray(actualBestRaw) ? actualBestRaw : (actualBestRaw ? [actualBestRaw] : []);
@@ -870,7 +872,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const predHas = pred?.home !== "" && pred?.away !== "" && pred?.home != null;
   const myScore = predHas ? `${pred.home}:${pred.away}` : "—";
   const myPlayer = pred?.bestPlayer ? escapeHtml(pred.bestPlayer) + ratingTag(ratings, pred.bestPlayer) : "—";
-  const myPts = calculatePointsForMatch(pred, actual).total;
+  const myPts = matchPointsFor(pred, match).total;
   const myRow = row("v2rc-row--mine", "ТЫ", myScore, myPlayer,
     vibeCell(myPts, match.id + (me?.nickname || "")),
     `<span class="${myPts > 0 ? "v2rc-pos" : ""}">${fmtPts(myPts)}</span>`);
@@ -884,7 +886,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
       nick: x.u.nickname,
       score: `${x.p.home ?? "—"}:${x.p.away ?? "—"}`,
       player: x.p.bestPlayer ? escapeHtml(x.p.bestPlayer) + ratingTag(ratings, x.p.bestPlayer) : "—",
-      pts: calculatePointsForMatch(x.p, actual).total,
+      pts: matchPointsFor(x.p, match).total,
     }))
     .sort((a, b) => b.pts - a.pts);
 

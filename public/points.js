@@ -122,13 +122,24 @@ export const BRACKET_BONUS = {
 export function calculateBracketBonus(user) {
   let total = 0;
   for (const match of activeMatches) {
-    const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
-    if (!tier) continue;
-    const pts = calculatePointsForMatch(user.matches?.[match.id], resolveActualResult(match));
-    if (pts.outcomeCorrect)    total += tier.outcome;
-    if (pts.bestPlayerCorrect) total += tier.player;
+    total += matchPointsFor(user.matches?.[match.id], match).bonus;
   }
   return total;
+}
+
+// Points a single match is worth to a prediction = base (исход/точный/игрок) PLUS
+// the escalating playoff bonus for knockout rounds. `total` already includes the
+// bonus, so result cards/badges that read `.total` show the full earned points.
+export function matchPointsFor(pred, match) {
+  const actual = resolveActualResult(match);
+  const base = calculatePointsForMatch(pred, actual);
+  const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
+  let bonus = 0;
+  if (tier) {
+    if (base.outcomeCorrect)    bonus += tier.outcome;
+    if (base.bestPlayerCorrect) bonus += tier.player;
+  }
+  return { ...base, bonus, total: base.total + bonus };
 }
 
 export function getUserTotalPoints(user) {

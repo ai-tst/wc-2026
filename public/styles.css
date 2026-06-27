@@ -1558,10 +1558,14 @@ body.design-v2 .v2rc { display: flex; flex-direction: column; gap: 10px; }
 .v2rc-scoreline { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; }
 .v2rc-t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; overflow-wrap: break-word; }
 .v2rc-t--r { justify-content: flex-end; text-align: right; }
-/* name in its own span; keep it on ONE line (no ugly mid-word breaks). Cards are
-   sized wide enough (wider match column + tighter score block) that full country
-   names fit. */
-body.design-v2 .v2rc-t .team-name { min-width: 0; white-space: nowrap; }
+/* RESULT-card hero names: long multi-word names (Bosnia & Herzegovina, Cape Verde
+   Islands) wrap onto several lines at spaces; single words break only as a last
+   resort. This is what the user wants in «Результаты». */
+body.design-v2 .v2rc-t .team-name { min-width: 0; white-space: normal; overflow-wrap: break-word; }
+/* MATCH-card hero names (the betting cards) stay on ONE line — too narrow on a
+   phone to wrap a single word cleanly, so ellipsize as the last resort instead of
+   breaking mid-letter or overflowing. Desktop is wide enough to show them in full. */
+body.design-v2 .v2mc .v2rc-t .team-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Flags stay a fixed size everywhere (never shrink with the name). Name shrinks instead. */
 body.design-v2 .team-flag { width: 22px; height: 15px; flex-shrink: 0; vertical-align: middle; }
@@ -1681,9 +1685,12 @@ body.design-v2 .v2mc { padding: 16px; gap: 12px; }
 body.design-v2 .v2mc .v2rc-scoreline { gap: 6px; }
 body.design-v2 .v2mc .v2rc-t { font-size: 13px; }
 @media (max-width: 560px) {
-  .v2mc-score-input { width: 40px; height: 40px; font-size: 18px; }
-  .v2mc-colon { font-size: 18px; }
-  body.design-v2 .v2mc .v2rc-t { font-size: 13px; }
+  /* tighter score block + smaller name font so full team names fit one line on phones */
+  .v2mc-score-input { width: 36px; height: 36px; font-size: 17px; }
+  .v2mc-colon { font-size: 16px; }
+  body.design-v2 .v2mc .v2rc-t { font-size: 12px; }
+  body.design-v2 .v2mc .v2rc-scoreline { gap: 4px; }
+  body.design-v2 .v2mc .v2rc-t .team-flag { width: 18px; height: 13px; }
 }
 .v2mc-live { color: #ff5d6c; font-weight: 700; }
 .v2mc-odds { display: flex; justify-content: center; gap: 8px; margin-top: 2px; }
@@ -1709,6 +1716,14 @@ body.design-v2 .matches-list {
   grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
   gap: 12px;
   align-items: start;
+}
+
+/* v2 mobile: collapse the matches/scoreboard row to a single stacked column
+   (the desktop 1.5fr/0.8fr + 370px-min rules above out-specify the base mobile
+   stack, so they must be explicitly undone here or the table overlaps the cards) */
+@media (max-width: 900px) {
+  body.design-v2 .main-grid { grid-template-columns: 1fr; }
+  body.design-v2 .matches-list { grid-template-columns: 1fr; }
 }
 
 /* v2: leaderboard expands fully on big screens, fixed height + scroll on phones */
@@ -1812,7 +1827,7 @@ body.bracket-open .app { max-width: 1700px; }
 .bracket-scroll { overflow-x: auto; padding-bottom: 10px; }
 .bracket {
   display: flex; align-items: stretch; gap: 8px;
-  min-width: max-content;
+  width: max-content; margin: 0 auto;  /* centered; scrolls if wider than the view */
 }
 .bk-col { display: flex; flex-direction: column; min-width: 128px; }
 .bk-col--c { min-width: 148px; justify-content: center; }
