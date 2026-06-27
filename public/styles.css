@@ -1844,6 +1844,19 @@ body.design-v2 .results-actions { display: none; }
   box-shadow: 0 16px 38px rgba(245, 158, 11, 0.55);
   text-decoration: none;
 }
+.feature-request-btn .frb-icon { line-height: 1; }
+
+/* On narrow screens collapse to an icon-only pill so the header doesn't blow up */
+@media (max-width: 560px) {
+  .feature-request-btn {
+    font-size: 13px;
+    padding: 8px 11px;
+    gap: 0;
+    box-shadow: 0 6px 16px rgba(245, 158, 11, 0.35);
+  }
+  .feature-request-btn .frb-label { display: none; }
+  .feature-request-btn .frb-icon { font-size: 16px; }
+}
 .card--bracket { overflow: hidden; }
 /* bracket view uses the full monitor width so all 9 columns fit without scroll */
 body.bracket-open .app { max-width: 1700px; }
