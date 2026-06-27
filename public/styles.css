@@ -1672,7 +1672,7 @@ body.design-v2 .v2mc { padding: 16px; gap: 12px; }
 .v2mc-score-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .v2mc-colon { font-family: "Russo One", var(--font-main); font-size: 20px; color: var(--muted); }
 body.design-v2 .v2mc .v2rc-scoreline { gap: 8px; }
-body.design-v2 .v2mc .v2rc-t { font-size: 14px; }
+body.design-v2 .v2mc .v2rc-t { font-size: 13px; }
 @media (max-width: 560px) {
   .v2mc-score-input { width: 40px; height: 40px; font-size: 18px; }
   .v2mc-colon { font-size: 18px; }
@@ -1691,7 +1691,7 @@ body.design-v2 .v2mc .confirm-bet-btn { width: 100%; height: 46px; border-radius
 /* v2: "Матчи сёдня" cards flow into a responsive grid (2-up on wide, 1-up on phone) */
 body.design-v2 .matches-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
   align-items: start;
 }
