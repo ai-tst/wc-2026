@@ -1846,16 +1846,25 @@ body.design-v2 .results-actions { display: none; }
 }
 .feature-request-btn .frb-icon { line-height: 1; }
 
-/* On narrow screens collapse to an icon-only pill so the header doesn't blow up */
+/* On narrow screens lay the header buttons out in a tidy 2-column grid (2 rows)
+   instead of an uneven wrap — keeps full labels readable without blowing up. */
 @media (max-width: 560px) {
-  .feature-request-btn {
+  .main-header__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  .main-header__actions > .secondary-btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
     font-size: 13px;
-    padding: 8px 11px;
-    gap: 0;
+    padding-inline: 10px;
+  }
+  .feature-request-btn {
     box-shadow: 0 6px 16px rgba(245, 158, 11, 0.35);
   }
-  .feature-request-btn .frb-label { display: none; }
-  .feature-request-btn .frb-icon { font-size: 16px; }
 }
 .card--bracket { overflow: hidden; }
 /* bracket view uses the full monitor width so all 9 columns fit without scroll */
