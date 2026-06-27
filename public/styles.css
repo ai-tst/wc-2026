@@ -1673,22 +1673,24 @@ body.design-v2 .outrights-display { display: block; }
 
 /* v2 "Матчи сёдня" card — same hero as result cards, but score boxes you fill */
 body.design-v2 .v2mc { padding: 16px; gap: 12px; }
-.v2mc-score { display: flex; align-items: center; justify-content: center; gap: 2px; flex-shrink: 0; }
+.v2mc-score { display: flex; align-items: center; justify-content: center; gap: 3px; flex-shrink: 0; }
 .v2mc-score-input {
-  width: 30px; height: 30px; text-align: center; padding: 0;
-  font-family: "Russo One", var(--font-main); font-size: 16px;
-  border-radius: 9px;
+  width: 38px; height: 38px; text-align: center; padding: 0;
+  font-family: "Russo One", var(--font-main); font-size: 18px;
+  border-radius: 10px;
 }
 .v2mc-score-input::-webkit-inner-spin-button,
 .v2mc-score-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.v2mc-colon { font-family: "Russo One", var(--font-main); font-size: 14px; color: var(--muted); }
-/* Имена команд в «Матчи сёдня»: компактный шрифт + тесный блок счёта + узкий флаг,
-   чтобы влезали длинные названия (Argentina, Uzbekistan, Netherlands).
-   Совсем гигантские всё равно обрежутся с «…». */
-body.design-v2 .v2mc .v2rc-scoreline { gap: 4px; }
-body.design-v2 .v2mc .v2rc-t { font-size: 11px; gap: 3px; }
-body.design-v2 .v2mc .v2rc-t .team-flag { width: 16px; height: 11px; }
-body.design-v2 .v2mc .v2rc-t .team-name { letter-spacing: -0.2px; }
+.v2mc-colon { font-family: "Russo One", var(--font-main); font-size: 16px; color: var(--muted); }
+/* Имена команд в «Матчи сёдня»: крупный читаемый шрифт.
+   ВАЖНО: hero по умолчанию ужимается до контента (flex column + center), из-за
+   чего scoreline жил в ~258px и имена резались даже в широкой карточке. Тянем
+   hero на всю ширину карточки, а scoreline ограничиваем, чтобы не растягивался
+   до краёв на широких карточках — имена получают вагон места. */
+body.design-v2 .v2mc .v2rc-hero { width: 100%; }
+body.design-v2 .v2mc .v2rc-scoreline { gap: 8px; max-width: 480px; margin: 0 auto; }
+body.design-v2 .v2mc .v2rc-t { font-size: 14px; gap: 6px; }
+body.design-v2 .v2mc .v2rc-t .team-flag { width: 20px; height: 14px; }
 @media (max-width: 560px) {
   /* tighter score block + smaller name font so full team names fit one line on phones */
   .v2mc-score-input { width: 36px; height: 36px; font-size: 17px; }
@@ -1718,7 +1720,7 @@ body.design-v2 .main-grid {
    falls back to 1-up (full width) on narrow screens. */
 body.design-v2 .matches-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
   gap: 12px;
   align-items: start;
 }
