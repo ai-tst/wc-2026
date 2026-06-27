@@ -1884,3 +1884,241 @@ body.bracket-open .app { max-width: 1700px; }
   .bk-col { min-width: 132px; }
   .bk-team { font-size: 11.5px; }
 }
+
+/* ══ Режим казика 🎰 (только новый дизайн) ════════════════════════════════════ */
+
+/* Логотип-триггер: намёк, что на него можно нажать */
+body.design-v2 #view-main .wc-logo--header {
+  cursor: pointer;
+  transition: transform 0.18s ease-out, filter 0.18s ease-out;
+}
+body.design-v2 #view-main .wc-logo--header:hover {
+  transform: scale(1.08) rotate(-3deg);
+  filter: drop-shadow(0 0 8px rgba(255, 210, 63, 0.7));
+}
+/* В режиме казика лого ЗАМЕТНО больше + пульсирует золотом (включился лютейший казик) */
+body.casino-mode #view-main .wc-logo--header {
+  width: 88px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.5), 0 0 22px rgba(255, 210, 63, 0.7);
+  animation: casinoLogoPulse 1.3s ease-in-out infinite;
+}
+@keyframes casinoLogoPulse {
+  0%, 100% { transform: scale(1)    rotate(0deg);  filter: drop-shadow(0 0 8px rgba(255, 210, 63, 0.7)); }
+  50%      { transform: scale(1.12) rotate(4deg);  filter: drop-shadow(0 0 20px rgba(255, 210, 63, 1)); }
+}
+
+/* Радужные переливающиеся обводки карточек */
+@keyframes casinoRainbow {
+  0%   { border-color: #ff004c; box-shadow: 0 0 16px rgba(255, 0, 76, 0.55); }
+  17%  { border-color: #ff9a00; box-shadow: 0 0 16px rgba(255, 154, 0, 0.55); }
+  34%  { border-color: #ffe600; box-shadow: 0 0 16px rgba(255, 230, 0, 0.55); }
+  50%  { border-color: #27ff64; box-shadow: 0 0 16px rgba(39, 255, 100, 0.55); }
+  67%  { border-color: #00d4ff; box-shadow: 0 0 16px rgba(0, 212, 255, 0.55); }
+  84%  { border-color: #b14bff; box-shadow: 0 0 16px rgba(177, 75, 255, 0.55); }
+  100% { border-color: #ff004c; box-shadow: 0 0 16px rgba(255, 0, 76, 0.55); }
+}
+body.casino-mode .card,
+body.casino-mode .match-row,
+body.casino-mode .result-card,
+body.casino-mode .bk-match {
+  border-width: 2px !important;
+  border-style: solid !important;
+  animation: casinoRainbow 3.2s linear infinite;
+}
+/* лёгкий разнобой фаз, чтобы радуга «текла» по сетке карточек */
+body.casino-mode .card:nth-child(3n+2),
+body.casino-mode .matches-list > .match-row:nth-child(3n+2),
+body.casino-mode .match-results-list > .result-card:nth-child(3n+2) { animation-delay: -1.05s; }
+body.casino-mode .card:nth-child(3n),
+body.casino-mode .matches-list > .match-row:nth-child(3n),
+body.casino-mode .match-results-list > .result-card:nth-child(3n)   { animation-delay: -2.1s; }
+
+/* Падающие монеты */
+.casino-coin {
+  position: fixed;
+  z-index: 9000;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  will-change: transform, opacity;
+}
+
+/* Огромная кнопка «НАУГАД БЛЯ» */
+.casino-roll-btn { display: none; }
+body.casino-mode .v2mc-controls .confirm-bet-btn { display: none; }
+body.casino-mode .casino-roll-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 18px 12px;
+  border: none;
+  border-radius: 14px;
+  font-family: "Russo One", var(--font-main);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1a0033;
+  cursor: pointer;
+  background: linear-gradient(100deg, #ffd23f, #ff7a00, #ff004c, #b14bff, #00d4ff, #27ff64, #ffd23f);
+  background-size: 300% 100%;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35), 0 0 24px rgba(255, 210, 63, 0.6);
+  animation: casinoBtnShine 2.4s linear infinite, casinoBtnPulse 1.1s ease-in-out infinite;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+@keyframes casinoBtnShine { to { background-position: 300% 0; } }
+@keyframes casinoBtnPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.03); }
+}
+body.casino-mode .casino-roll-btn:hover  { filter: brightness(1.08); }
+body.casino-mode .casino-roll-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(255,210,63,.6); }
+body.casino-mode .casino-roll-btn:disabled { opacity: 0.75; cursor: wait; }
+
+/* ── Слот-машина (оверлей) ─────────────────────────────────────────────────────*/
+.casino-slot-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.25s ease-out;
+}
+.casino-slot-overlay--in { opacity: 1; }
+.casino-slot-backdrop {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at center, rgba(20, 6, 40, 0.82), rgba(2, 0, 8, 0.95));
+  backdrop-filter: blur(3px);
+}
+.casino-slot-machine {
+  position: relative;
+  z-index: 1;
+  padding: 26px 30px 30px;
+  border-radius: 24px;
+  text-align: center;
+  background: linear-gradient(160deg, #2a0f4d, #14082e);
+  border: 3px solid #ffd23f;
+  box-shadow: 0 0 0 3px rgba(255, 0, 76, 0.4), 0 24px 70px rgba(0, 0, 0, 0.7), 0 0 50px rgba(255, 210, 63, 0.35);
+  transform: scale(0.9);
+  transition: transform 0.3s cubic-bezier(.2,1.3,.4,1);
+}
+.casino-slot-overlay--in .casino-slot-machine { transform: scale(1); }
+.casino-slot-title {
+  font-family: "Russo One", var(--font-main);
+  font-size: 24px;
+  color: #ffd23f;
+  letter-spacing: 0.05em;
+  margin-bottom: 18px;
+  text-shadow: 0 0 12px rgba(255, 210, 63, 0.8);
+}
+.casino-slot-reels {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 14px 18px;
+  background: #0a0418;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 210, 63, 0.4);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+}
+.casino-reel {
+  position: relative;
+  width: 92px; height: 110px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffdf5, #e9e2ff);
+  box-shadow: inset 0 8px 12px rgba(0,0,0,.25), inset 0 -8px 12px rgba(0,0,0,.25);
+}
+/* лёгкая «засветка» центральной линии барабана */
+.casino-reel::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.35), transparent 28%, transparent 72%, rgba(0,0,0,.35));
+}
+.casino-reel-strip { display: flex; flex-direction: column; will-change: transform; }
+.casino-reel-digit {
+  height: 110px; line-height: 110px;
+  font-family: "Russo One", var(--font-main);
+  font-size: 68px; font-weight: 800;
+  color: #1a0033;
+  text-align: center;
+}
+.casino-slot-colon {
+  font-family: "Russo One", var(--font-main);
+  font-size: 56px; color: #ffd23f;
+  text-shadow: 0 0 10px rgba(255, 210, 63, 0.8);
+}
+.casino-slot-result {
+  margin-top: 18px;
+  font-size: 19px; font-weight: 700; color: var(--text);
+  min-height: 26px;
+}
+.casino-slot-result b { color: #ffd23f; font-size: 24px; }
+.casino-slot-result--jackpot {
+  color: #ffd23f; font-size: 24px;
+  animation: casinoBtnPulse 0.5s ease-in-out infinite;
+  text-shadow: 0 0 16px rgba(255, 210, 63, 0.9);
+}
+.casino-slot-actions {
+  margin-top: 16px;
+  display: flex; gap: 12px; justify-content: center;
+}
+.casino-slot-actions.hidden { display: none; }
+.casino-slot-go, .casino-slot-no {
+  padding: 12px 22px;
+  border: none; border-radius: 12px;
+  font-family: "Russo One", var(--font-main);
+  font-size: 16px; cursor: pointer;
+}
+.casino-slot-go {
+  color: #06210f;
+  background: linear-gradient(135deg, #27ff64, #16a34a);
+  box-shadow: 0 5px 0 rgba(0,0,0,.3), 0 0 20px rgba(39, 255, 100, 0.5);
+}
+.casino-slot-no {
+  color: #fff;
+  background: linear-gradient(135deg, #4a4366, #2a2540);
+  box-shadow: 0 5px 0 rgba(0,0,0,.3);
+}
+.casino-slot-go:hover, .casino-slot-no:hover  { filter: brightness(1.12); }
+.casino-slot-go:active, .casino-slot-no:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.3); }
+
+/* Барабан игрока (скремблится рядом со счётом) */
+.casino-player-roll {
+  margin-top: 14px;
+  padding: 9px 16px;
+  background: #0a0418;
+  border: 2px solid rgba(255, 210, 63, 0.4);
+  border-radius: 12px;
+  font-family: "Russo One", var(--font-main);
+  font-size: 18px;
+  color: #ffd23f;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.7);
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: 280px;
+}
+.casino-player-name {
+  color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+/* Эквалайзер в шапке */
+.casino-eq { display: none; }
+body.casino-mode .casino-eq {
+  display: block;
+  flex: 1 1 auto;
+  max-width: 260px;
+  height: 42px;
+  margin: 0 16px;
+  align-self: center;
+}
+body.casino-mode .casino-eq canvas {
+  width: 100%; height: 100%;
+  display: block;
+  filter: drop-shadow(0 0 6px rgba(255, 210, 63, 0.4));
+}
+@media (max-width: 760px) { body.casino-mode .casino-eq { display: none; } }
+
+@media (max-width: 560px) {
+  .casino-reel { width: 74px; height: 92px; }
+  .casino-reel-digit { height: 92px; line-height: 92px; font-size: 56px; }
+  .casino-slot-machine { padding: 20px 18px 24px; }
+  .casino-slot-title { font-size: 20px; }
+  .casino-roll-btn { font-size: 17px; padding: 16px 10px; }
+}

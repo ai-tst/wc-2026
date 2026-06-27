@@ -4,6 +4,7 @@ import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { calculatePointsForMatch, resolveActualResult, matchPointsFor } from "./points.js";
 import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api-client.js";
+import { runScoreSlot } from "./casino.js";
 
 const ERROR_MSG = "Да отсоси ты хуй бля";
 
@@ -574,7 +575,16 @@ function createMatchRowV2(match) {
     savedNote.textContent = hasPrediction ? "✓ ставка принята · можно менять" : "ставка ещё не сделана";
     controls.appendChild(savedNote);
 
-    confirmBtn.addEventListener("click", async () => {
+    // 🎰 Режим казика: огромная «НАУГАД БЛЯ» вместо «Изменить ставку».
+    // Видна/скрыта чисто через CSS (body.casino-mode), так что переключение
+    // режима не требует ре-рендера. Крутит только счёт, игрок — на участнике.
+    const casinoBtn = document.createElement("button");
+    casinoBtn.type = "button";
+    casinoBtn.className = "casino-roll-btn";
+    casinoBtn.textContent = "🎰 НАУГАД БЛЯ 🎰";
+    controls.appendChild(casinoBtn);
+
+    const saveBet = async () => {
       const data = readData();
       if (data.home === "" || data.away === "") { showBetError("Укажи счёт матча"); return; }
       if (data.home.length > 2 || data.away.length > 2) { showBetError("Счёт: не больше 2 цифр"); return; }
@@ -601,6 +611,25 @@ function createMatchRowV2(match) {
         console.error("Failed to save prediction:", err);
         confirmBtn.textContent = err.message?.includes("начался") ? err.message : "Ошибка, попробуй ещё";
         confirmBtn.disabled = false;
+      }
+    };
+
+    confirmBtn.addEventListener("click", saveBet);
+
+    casinoBtn.addEventListener("click", async () => {
+      if (casinoBtn.disabled) return;
+      casinoBtn.disabled = true;
+      try {
+        let pool = getPlayers();                        // список игроков обоих составов
+        if (!pool || !pool.length) pool = await fetchMatchPlayers(match);
+        const res = await runScoreSlot(pool || []);     // крутим: счёт + случайный игрок
+        if (!res) return;                               // «не ставить» — выходим без сохранения
+        homeInput.value = res.home;
+        awayInput.value = res.away;
+        if (res.player) playerInput.value = res.player; // игрок тоже выпал на слоте
+        await saveBet();
+      } finally {
+        casinoBtn.disabled = false;
       }
     });
 
@@ -652,6 +681,16 @@ function createAllBetsSection(match, collapsible = false) {
   section.className = "match-all-bets";
   section.innerHTML = `<div class="all-bets-title">Ставки участников</div>${rowsHtml}`;
   return section;
+}
+
+// Players for both squads (used by the casino slot to roll a random best player).
+async function fetchMatchPlayers(match) {
+  const { homeTeamId, awayTeamId } = match;
+  if (!homeTeamId || !awayTeamId) return [];
+  try {
+    const [hp, ap] = await Promise.all([getTeamPlayers(homeTeamId), getTeamPlayers(awayTeamId)]);
+    return [...hp, ...ap];
+  } catch { return []; }
 }
 
 function attachDropdown(playerInput, match) {

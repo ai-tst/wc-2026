@@ -15,6 +15,7 @@ import { renderMatches, renderMatchResults, renderPlayerProfile } from "./matche
 import { renderScoreboard } from "./scoreboard.js";
 import { renderStats } from "./stats.js";
 import { renderBracket } from "./bracket.js";
+import { setupCasino } from "./casino.js";
 import { fetchMatchesFromSportDb } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
@@ -248,6 +249,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupPlayerProfile();
   setupDesignToggle();
   setupBracket();
+  setupCasino();
   await route();
 });
 
