@@ -5,6 +5,7 @@ import { renderScoreboard } from "./scoreboard.js";
 import { calculatePointsForMatch, resolveActualResult, matchPointsFor } from "./points.js";
 import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api-client.js";
 import { runScoreSlot } from "./casino.js";
+import { openShareCard } from "./share-card.js";
 
 const ERROR_MSG = "Да отсоси ты хуй бля";
 
@@ -911,7 +912,8 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const predHas = pred?.home !== "" && pred?.away !== "" && pred?.home != null;
   const myScore = predHas ? `${pred.home}:${pred.away}` : "—";
   const myPlayer = pred?.bestPlayer ? escapeHtml(pred.bestPlayer) + ratingTag(ratings, pred.bestPlayer) : "—";
-  const myPts = matchPointsFor(pred, match).total;
+  const myInfo = matchPointsFor(pred, match);
+  const myPts = myInfo.total;
   const myRow = row("v2rc-row--mine", "ТЫ", myScore, myPlayer,
     vibeCell(myPts, match.id + (me?.nickname || "")),
     `<span class="${myPts > 0 ? "v2rc-pos" : ""}">${fmtPts(myPts)}</span>`);
@@ -939,6 +941,14 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
       </div>
     </details>` : "";
 
+  // Кнопку шеринга показываем только для своей карточки и только если ты реально
+  // ставил на этот матч (иначе хвастаться нечем).
+  const ownCard = !viewUser || me === currentUser;
+  const canShare = ownCard && predHas;
+  const shareRow = canShare
+    ? `<div class="v2rc-share"><button type="button" class="share-btn">📲 Поделиться картинкой</button></div>`
+    : "";
+
   const card = document.createElement("div");
   card.className = "result-card v2rc";
   card.innerHTML = `
@@ -955,7 +965,37 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
       ${labelRow}
       ${myRow}
     </div>
+    ${shareRow}
     ${othersHtml}
   `;
+
+  if (canShare) {
+    const verdict = myInfo.exactScore
+      ? { label: "🎯 В ТОЧКУ", tone: "exact" }
+      : myInfo.outcomeCorrect
+        ? { label: "✅ ЗАШЛО", tone: "win" }
+        : { label: "❌ СЛИЛ", tone: "lose" };
+    const btn = card.querySelector(".share-btn");
+    btn?.addEventListener("click", () =>
+      openShareCard(
+        {
+          home: match.home,
+          away: match.away,
+          homeCode: TEAM_FLAGS[match.home] || "",
+          awayCode: TEAM_FLAGS[match.away] || "",
+          homeScore: match.homeScore ?? "?",
+          awayScore: match.awayScore ?? "?",
+          predScore: `${pred.home}:${pred.away}`,
+          pts: myPts,
+          verdict,
+          vibe: vibeWord(myPts, match.id + (me?.nickname || "")),
+          nick: me?.nickname || "Аноним с Otsos",
+          typeLine,
+        },
+        btn
+      )
+    );
+  }
+
   return card;
 }
