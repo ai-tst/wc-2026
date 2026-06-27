@@ -1388,7 +1388,7 @@ body.design-v2 {
 /* Sporty display font for headings + the big scores */
 body.design-v2 h1,
 body.design-v2 h2,
-body.design-v2 .v2rc-row--result .v2rc-score,
+body.design-v2 .v2rc-nums,
 body.design-v2 .result-card__actual-score {
   font-family: "Russo One", var(--font-main);
   letter-spacing: 0.01em;
@@ -1410,14 +1410,7 @@ body.design-v2 .main-header__brand p {        /* greeting */
   margin: 0;
 }
 body.design-v2 #main-nickname { color: var(--gold); }
-body.design-v2 .main-header__tagline {
-  display: block;
-  margin: 4px 0 0;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--muted);
-}
-.main-header__tagline { display: none; }       /* hidden in v1 */
+.main-header__tagline { display: none; }       /* removed — was just clutter */
 
 body.design-v2 .auth-header .wc-logo,
 body.design-v2 #view-onboarding .wc-logo {
@@ -1459,25 +1452,68 @@ body.design-v2 .wcs-input:focus {
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.4);
 }
 
-/* Match rows → clean vertical card so team names never squish/wrap weirdly */
+/* Match rows → clean vertical card with a tidy "Твой прогноз" block */
 body.design-v2 .match-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding: 16px;
   background: linear-gradient(160deg, rgba(38, 32, 84, 0.9), rgba(18, 15, 46, 0.92));
   border: 1px solid rgba(168, 163, 212, 0.2);
 }
-body.design-v2 .match-teams { font-size: 15px; }
+body.design-v2 .match-row-header { gap: 4px; }
+body.design-v2 .match-teams { font-size: 16px; font-weight: 800; }
+body.design-v2 .match-time { font-size: 12px; }
+body.design-v2 .match-status--live { color: #ff5d6c; }
+body.design-v2 .match-group { font-size: 11px; }
+body.design-v2 .match-odds { gap: 8px; margin-top: 4px; }
+body.design-v2 .match-odds span {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(168, 163, 212, 0.2);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+body.design-v2 .match-prediction {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(168, 163, 212, 0.18);
+}
+body.design-v2 .match-prediction::before {
+  content: "Твой прогноз";
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 700;
+}
+body.design-v2 .score-input-group { justify-content: center; gap: 12px; }
+body.design-v2 .score-input-group span { font-size: 22px; font-weight: 800; color: var(--muted); }
+body.design-v2 .score-input-group input {
+  width: 60px;
+  height: 50px;
+  font-family: "Russo One", var(--font-main);
+  font-size: 22px;
+  text-align: center;
+}
+body.design-v2 .score-input-group input::-webkit-inner-spin-button,
+body.design-v2 .score-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+body.design-v2 .match-player-input { flex: 0 0 auto; width: 100%; height: 42px; }
+body.design-v2 .confirm-bet-btn { width: 100%; height: 46px; border-radius: 12px; font-size: 15px; }
 body.design-v2 .result-card {
   background: linear-gradient(160deg, rgba(38, 32, 84, 0.9), rgba(18, 15, 46, 0.92));
   border: 1px solid rgba(168, 163, 212, 0.2);
 }
 
-/* Scoreboard: subtle gold tint on the leader, green on your own row */
+/* Colour semantics: GOLD = you (your row); neutral tint for the leader */
 body.design-v2 .scoreboard-table tbody tr:first-child {
-  box-shadow: inset 0 0 0 9999px rgba(255, 210, 63, 0.07);
+  box-shadow: inset 0 0 0 9999px rgba(255, 255, 255, 0.04);
 }
-body.design-v2 .scoreboard-row--me td { color: #7CFFB2; }
+body.design-v2 .scoreboard-row--me td { color: var(--gold); font-weight: 700; }
 
 /* Persistent "bet saved" indicator (v2 only) */
 body.design-v2 .bet-saved-note {
@@ -1506,23 +1542,42 @@ body.design-v2 .all-bets-summary::before { content: "▶ "; font-size: 10px; }
 body.design-v2 details[open] > .all-bets-summary::before { content: "▼ "; }
 body.design-v2 .all-bets-body { margin-top: 6px; }
 
-/* ── v2 result card: one aligned table — ИТОГ / ТЫ / участники share columns ─── */
-body.design-v2 .v2rc { display: flex; flex-direction: column; gap: 8px; }
-.v2rc-head { display: flex; flex-direction: column; gap: 2px; }
-.v2rc-teams { font-weight: 800; font-size: 16px; }
-.v2rc-type { font-size: 12px; color: var(--muted); }
+/* ── v2 result card (hybrid): GREEN score hero (actual = correct) + GOLD "ТЫ" row ─
+   Colour semantics: GREEN = what actually happened / points earned; GOLD = you.   */
+body.design-v2 .v2rc { display: flex; flex-direction: column; gap: 10px; }
+
+.v2rc-hero {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 4px 0 12px;
+  border-bottom: 1px dashed rgba(168, 163, 212, 0.28);
+}
+.v2rc-type { font-size: 12px; color: var(--muted); text-align: center; }
+.v2rc-scoreline { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; }
+.v2rc-t { flex: 1; display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; }
+.v2rc-t--r { justify-content: flex-end; text-align: right; }
+.v2rc-nums {
+  font-family: "Russo One", var(--font-main); font-size: 30px;
+  color: var(--green); white-space: nowrap;
+}
+.v2rc-best {
+  background: var(--green-soft); border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 999px; padding: 4px 14px; font-size: 13px; color: #7CFFB2; font-weight: 600;
+}
 
 .v2rc-grid { display: flex; flex-direction: column; }
 .v2rc-row {
   display: grid;
-  grid-template-columns: 58px 50px 1fr 44px;
+  grid-template-columns: 96px 44px 1fr 42px;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 6px 8px;
 }
-.v2rc-who { font-size: 12px; font-weight: 700; color: var(--text); }
+.v2rc-who {
+  font-size: 12px; font-weight: 700; color: var(--text);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .v2rc-score { font-weight: 800; white-space: nowrap; }
-.v2rc-player { font-size: 13px; color: var(--text); line-height: 1.25; }
+.v2rc-player { font-size: 13px; color: var(--text); line-height: 1.25; min-width: 0; }
 .v2rc-pts { text-align: right; font-weight: 800; color: var(--muted); }
 
 .v2rc-row--label { padding: 2px 8px; }
@@ -1531,23 +1586,16 @@ body.design-v2 .v2rc { display: flex; flex-direction: column; gap: 8px; }
   color: var(--muted); font-weight: 600;
 }
 
-.v2rc-row--result {
-  border-radius: 10px;
-  background: rgba(255, 210, 63, 0.10);
-  margin-bottom: 2px;
-}
-.v2rc-row--result .v2rc-who    { color: var(--gold); }
-.v2rc-row--result .v2rc-score  { color: var(--gold); font-size: 19px; }
-.v2rc-row--result .v2rc-player { font-weight: 600; }
-
+/* GOLD = you */
 .v2rc-row--mine {
   border-radius: 10px;
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(255, 210, 63, 0.12);
+  border: 1px solid rgba(255, 210, 63, 0.35);
 }
-.v2rc-row--mine .v2rc-who   { color: #7CFFB2; }
+.v2rc-row--mine .v2rc-who   { color: var(--gold); }
 .v2rc-row--mine .v2rc-score { font-size: 17px; }
 
+/* GREEN = correct / points earned */
 .v2rc-pos   { color: #7CFFB2; }
 .v2rc-muted { color: var(--muted); }
 
@@ -1563,5 +1611,56 @@ details[open] > .v2rc-others-sum::before { content: "▼ "; }
 .v2rc-row--other:nth-child(even) { background: rgba(255, 255, 255, 0.03); border-radius: 8px; }
 
 @media (max-width: 480px) {
-  .v2rc-row { grid-template-columns: 50px 42px 1fr 38px; gap: 6px; padding: 6px 4px; }
+  .v2rc-row { grid-template-columns: 76px 38px 1fr 34px; gap: 7px; padding: 6px 4px; }
+  .v2rc-nums { font-size: 26px; }
+  .v2rc-t { font-size: 13px; }
 }
+
+/* Outrights: others as a collapsible right under your picks (v2); hide bottom dup */
+.outrights-others { display: none; }
+body.design-v2 .outrights-others {
+  display: block;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(168, 163, 212, 0.18);
+}
+body.design-v2 #all-outrights-section { display: none; }
+.outrights-others-sum {
+  cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent);
+  list-style: none; padding: 4px 0;
+}
+.outrights-others-sum::-webkit-details-marker { display: none; }
+.outrights-others-sum::before { content: "▶ "; font-size: 10px; }
+details[open] > .outrights-others-sum::before { content: "▼ "; }
+
+/* v2: your outrights as one compact line (with a flag on the champion pick) */
+body.design-v2 .outrights-display { display: block; }
+.outrights-compact { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
+.oc-item { font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; }
+.oc-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); font-weight: 600; margin-right: 6px;
+}
+.oc-dh { white-space: nowrap; }
+.oc-dh + .oc-dh { margin-left: 12px; }
+
+/* v2 "Матчи сёдня" card — same hero as result cards, but score boxes you fill */
+body.design-v2 .v2mc { padding: 16px; gap: 12px; }
+.v2mc-score { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.v2mc-score-input {
+  width: 56px; height: 56px; text-align: center; padding: 0;
+  font-family: "Russo One", var(--font-main); font-size: 24px;
+  border-radius: 12px;
+}
+.v2mc-score-input::-webkit-inner-spin-button,
+.v2mc-score-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.v2mc-colon { font-family: "Russo One", var(--font-main); font-size: 24px; color: var(--muted); }
+.v2mc-live { color: #ff5d6c; font-weight: 700; }
+.v2mc-odds { display: flex; justify-content: center; gap: 8px; margin-top: 2px; }
+.v2mc-odds span {
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(168, 163, 212, 0.2);
+  border-radius: 8px; padding: 4px 10px; font-size: 12px; color: var(--muted); font-weight: 600;
+}
+.v2mc-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+.v2mc-player { width: 100%; height: 44px; }
+body.design-v2 .v2mc .confirm-bet-btn { width: 100%; height: 46px; border-radius: 12px; font-size: 15px; }

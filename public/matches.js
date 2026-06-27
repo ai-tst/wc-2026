@@ -199,7 +199,9 @@ export function renderMatches() {
         ? `<p class="muted">Сейчас нет live и открытых для ставок матчей. Завершённые ищи в «Результатах» ниже 👇</p>`
         : `<p class="muted">Матчи пока недоступны</p>`;
     } else {
-      visibleMatches.forEach((m) => container.appendChild(createMatchRow(m, false)));
+      visibleMatches.forEach((m) => container.appendChild(
+        isV2() ? createMatchRowV2(m) : createMatchRow(m, false)
+      ));
     }
   }
 
@@ -437,6 +439,132 @@ export function createMatchRow(match, isActual) {
   // Show all participants' bets once match has started
   if (phase !== "upcoming") {
     const allBets = createAllBetsSection(match, v2);
+    if (allBets) row.appendChild(allBets);
+  }
+
+  return row;
+}
+
+// v2 "Матчи сёдня" card — mirrors the result hero: type·date line, flags + score
+// boxes you fill, odds chips, then a player field + confirm button. Reuses the
+// same save / dropdown / validation logic as the v1 row.
+function createMatchRowV2(match) {
+  const phase      = getMatchPhase(match);   // 'upcoming' | 'live' (ended excluded from this list)
+  const editable   = phase === "upcoming";
+  const prediction = currentUser.matches?.[match.id];
+  const moscow     = moscowLabel(match.dateTimeRaw);
+  const typeBits   = [match.league, match.group, moscow.full].filter(Boolean).join(" · ");
+  const odds       = match.odds && typeof match.odds === "object" ? match.odds : {};
+  const oddsHtml   = (odds.home || odds.draw || odds.away) ? `
+      <div class="v2mc-odds">
+        <span>П1 ${escapeHtml(String(odds.home ?? "–"))}</span>
+        <span>X ${escapeHtml(String(odds.draw ?? "–"))}</span>
+        <span>П2 ${escapeHtml(String(odds.away ?? "–"))}</span>
+      </div>` : "";
+  const liveBadge  = phase === "live" ? ` <span class="v2mc-live">● LIVE</span>` : "";
+
+  const row = document.createElement("div");
+  row.className = "match-row v2mc";
+
+  const hero = document.createElement("div");
+  hero.className = "v2rc-hero";
+  hero.innerHTML = `
+    <div class="v2rc-type">${escapeHtml(typeBits)}${liveBadge}</div>
+    <div class="v2rc-scoreline">
+      <span class="v2rc-t v2rc-t--r">${withFlag(match.home)}</span>
+      <span class="v2mc-score"></span>
+      <span class="v2rc-t">${withFlag(match.away)}</span>
+    </div>
+    ${oddsHtml}`;
+  row.appendChild(hero);
+
+  const slot = hero.querySelector(".v2mc-score");
+  const homeInput = document.createElement("input");
+  const awayInput = document.createElement("input");
+  [homeInput, awayInput].forEach((inp) => {
+    inp.type = "number"; inp.min = "0"; inp.inputMode = "numeric";
+    inp.placeholder = "–"; inp.className = "v2mc-score-input";
+  });
+  const colon = document.createElement("span");
+  colon.className = "v2mc-colon"; colon.textContent = ":";
+  slot.append(homeInput, colon, awayInput);
+
+  const controls = document.createElement("div");
+  controls.className = "v2mc-controls";
+  row.appendChild(controls);
+
+  const playerInput = document.createElement("input");
+  playerInput.type = "text";
+  playerInput.setAttribute("autocomplete", "off");
+  playerInput.className = "match-player-input v2mc-player";
+  playerInput.placeholder = "Лучший игрок матча";
+  controls.appendChild(playerInput);
+
+  homeInput.value   = prediction?.home ?? "";
+  awayInput.value   = prediction?.away ?? "";
+  playerInput.value = prediction?.bestPlayer ?? "";
+  homeInput.disabled = awayInput.disabled = playerInput.disabled = !editable;
+
+  const readData = () => ({ home: homeInput.value.trim(), away: awayInput.value.trim(), bestPlayer: playerInput.value.trim() });
+
+  if (editable) {
+    let getPlayers = () => null;
+    [homeInput, awayInput].forEach((inp) => inp.addEventListener("input", () => {
+      if (inp.value.length > 2) inp.value = inp.value.slice(0, 2);
+    }));
+
+    const hasPrediction = prediction?.home !== undefined && prediction?.home !== "";
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "confirm-bet-btn";
+    confirmBtn.textContent = hasPrediction ? "Изменить ставку" : "Подтвердить ставку";
+    controls.appendChild(confirmBtn);
+
+    const savedNote = document.createElement("div");
+    savedNote.className = "bet-saved-note" + (hasPrediction ? " bet-saved-note--on" : "");
+    savedNote.textContent = hasPrediction ? "✓ ставка принята · можно менять" : "ставка ещё не сделана";
+    controls.appendChild(savedNote);
+
+    confirmBtn.addEventListener("click", async () => {
+      const data = readData();
+      if (data.home === "" || data.away === "") { showBetError("Укажи счёт матча"); return; }
+      if (data.home.length > 2 || data.away.length > 2) { showBetError("Счёт: не больше 2 цифр"); return; }
+      if (!data.bestPlayer) { showBetError("Укажи лучшего игрока матча"); return; }
+      const players = getPlayers();
+      if (players !== null && players.length > 0) {
+        const valid = players.some((p) => p.name.toLowerCase() === data.bestPlayer.toLowerCase());
+        if (!valid) { showBetError("Выбери лучшего игрока из выпадающего списка"); playerInput.value = ""; return; }
+      }
+      confirmBtn.disabled = true; confirmBtn.textContent = "Сохраняю…";
+      currentUser.matches[match.id] = data;
+      try {
+        await apiSavePrediction(match.id, data);
+        savedNote.className = "bet-saved-note bet-saved-note--on";
+        savedNote.textContent = "✓ ставка принята · можно менять";
+        confirmBtn.className = "confirm-bet-btn confirm-bet-btn--saved";
+        confirmBtn.textContent = "✓ Ставка принята";
+        setTimeout(() => {
+          confirmBtn.className = "confirm-bet-btn";
+          confirmBtn.textContent = "Изменить ставку";
+          confirmBtn.disabled = false;
+        }, 1500);
+      } catch (err) {
+        console.error("Failed to save prediction:", err);
+        confirmBtn.textContent = err.message?.includes("начался") ? err.message : "Ошибка, попробуй ещё";
+        confirmBtn.disabled = false;
+      }
+    });
+
+    getPlayers = attachDropdown(playerInput, match);
+  } else {
+    const lock = document.createElement("p");
+    lock.className = "match-locked-label";
+    lock.textContent = "Матч начался — ставки закрыты";
+    controls.insertBefore(lock, controls.firstChild);
+  }
+
+  if (phase !== "upcoming") {
+    const allBets = createAllBetsSection(match, true);
     if (allBets) row.appendChild(allBets);
   }
 
@@ -713,7 +841,6 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     <details class="v2rc-others">
       <summary class="v2rc-others-sum">Ставки участников (${others.length})</summary>
       <div class="v2rc-grid">
-        ${labelRow}
         ${others.map((o) => row("v2rc-row--other", escapeHtml(o.nick), o.score, o.player,
             `<span class="${o.pts > 0 ? "v2rc-pos" : "v2rc-muted"}">${fmtPts(o.pts)}</span>`)).join("")}
       </div>
@@ -722,13 +849,17 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const card = document.createElement("div");
   card.className = "result-card v2rc";
   card.innerHTML = `
-    <div class="v2rc-head">
-      <div class="v2rc-teams">${withFlag(match.home)} — ${withFlag(match.away)}</div>
+    <div class="v2rc-hero">
       ${typeLine ? `<div class="v2rc-type">${escapeHtml(typeLine)}</div>` : ""}
+      <div class="v2rc-scoreline">
+        <span class="v2rc-t v2rc-t--r">${withFlag(match.home)}</span>
+        <span class="v2rc-nums">${match.homeScore ?? "?"} : ${match.awayScore ?? "?"}</span>
+        <span class="v2rc-t">${withFlag(match.away)}</span>
+      </div>
+      <div class="v2rc-best">⭐ ${actualBestHtml}</div>
     </div>
     <div class="v2rc-grid">
       ${labelRow}
-      ${row("v2rc-row--result", "ИТОГ", actualScore, "⭐ " + actualBestHtml, "")}
       ${myRow}
     </div>
     ${othersHtml}
