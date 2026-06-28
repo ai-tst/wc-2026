@@ -279,7 +279,8 @@ def init_db():
     db.close()
 
 
-init_db()
+if not os.environ.get("WC2026_TESTING"):
+    init_db()
 
 # ==========================================
 # TELEGRAM BOT
@@ -594,7 +595,8 @@ def _reminder_loop():
 
 
 import threading as _threading
-_threading.Thread(target=_reminder_loop, daemon=True, name="tg-reminders").start()
+if not os.environ.get("WC2026_TESTING"):
+    _threading.Thread(target=_reminder_loop, daemon=True, name="tg-reminders").start()
 
 
 # ==========================================
@@ -685,7 +687,8 @@ def _preload_ratings_cache():
     except Exception as e:
         print(f"[cache] Preload error: {e}")
 
-_preload_ratings_cache()
+if not os.environ.get("WC2026_TESTING"):
+    _preload_ratings_cache()
 
 
 def get_best_player(match_id, home=None, away=None):
