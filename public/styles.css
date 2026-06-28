@@ -2537,3 +2537,54 @@ body.casino-mode .casino-eq canvas {
   .casino-slot-title { font-size: 20px; }
   .casino-roll-btn { font-size: 17px; padding: 16px 10px; }
 }
+
+/* ── OTS-21: плей-офф — раздельные предсказания (исход / счёт / игрок / пенальти) ── */
+/* Блок появляется только на карточках матчей плей-офф, под полем «лучший игрок». */
+body.design-v2 .v2mc-playoff {
+  display: flex; flex-direction: column; gap: 9px;
+  padding-top: 10px; margin-top: 2px;
+  border-top: 1px dashed var(--border);
+}
+body.design-v2 .v2mc-po-note { font-size: 11px; color: var(--muted); }
+body.design-v2 .v2mc-po-label { font-size: 12px; font-weight: 700; color: var(--text); }
+body.design-v2 .v2mc-advance { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body.design-v2 .v2mc-adv-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: transparent; color: var(--text);
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: var(--transition-fast);
+}
+body.design-v2 .v2mc-adv-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+body.design-v2 .v2mc-adv-btn--on {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+}
+body.design-v2 .v2mc-adv-btn:disabled { opacity: 0.55; cursor: default; }
+body.design-v2 .v2mc-penalties {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted); cursor: pointer;
+}
+body.design-v2 .v2mc-penalties .v2mc-pen-box { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+/* Админ-ввод факта плей-офф (кто прошёл + была ли серия пенальти) */
+.actual-playoff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.actual-winner-select {
+  height: 38px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-softer); color: var(--text); font-family: inherit; font-size: 13px;
+}
+.actual-winner-select:focus { outline: none; border-color: var(--accent); }
+.actual-pen-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.actual-pen-label input { accent-color: var(--accent); }
+
+/* Результат-карточка плей-офф: кто прошёл + разбивка ставки юзера */
+body.design-v2 .v2rc-advanced { font-size: 12px; color: var(--muted); }
+body.design-v2 .v2rc-advanced .team-flag { vertical-align: middle; }
+body.design-v2 .v2rc-breakdown {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px;
+  padding: 8px 8px 2px; font-size: 12px; color: var(--muted);
+}
+body.design-v2 .v2rc-bd-item { display: inline-flex; align-items: center; gap: 5px; }
+body.design-v2 .v2rc-bd-ok { color: var(--accent); font-weight: 700; }
+body.design-v2 .v2rc-bd-no { color: var(--muted); font-weight: 700; }

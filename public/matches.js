@@ -2,7 +2,7 @@ import { state, currentUser, activeMatches } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
-import { calculatePointsForMatch, resolveActualResult, matchPointsFor } from "./points.js";
+import { calculatePointsForMatch, resolveActualResult, matchPointsFor, classifyKnockoutRound } from "./points.js";
 import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api-client.js";
 import { runScoreSlot } from "./casino.js";
 import { openShareCard } from "./share-card.js";
@@ -368,6 +368,48 @@ export function createMatchRow(match, isActual) {
     playerInput.addEventListener("change", saveAdmin);
     attachDropdown(playerInput, match);
 
+    // OTS-21 admin: в плей-офф админ фиксирует, КТО прошёл дальше (для ничьих по
+    // пенальти счёт этого не показывает) + была ли серия пенальти.
+    if (classifyKnockoutRound(match.group)) {
+      const adminEntry2 = state.actualMatches?.[match.id];
+      const po = document.createElement("div");
+      po.className = "actual-playoff";
+
+      const sel = document.createElement("select");
+      sel.className = "actual-winner-select";
+      [["", "Кто прошёл дальше…"], [match.home, match.home], [match.away, match.away]]
+        .forEach(([val, label]) => {
+          const opt = document.createElement("option");
+          opt.value = val; opt.textContent = label;
+          sel.appendChild(opt);
+        });
+      sel.value = adminEntry2?.winner || "";
+
+      const penLabel = document.createElement("label");
+      penLabel.className = "actual-pen-label";
+      const penBox = document.createElement("input");
+      penBox.type = "checkbox";
+      penBox.checked = adminEntry2?.penalties === "yes";
+      penLabel.append(penBox, document.createTextNode(" серия пенальти"));
+
+      const savePlayoff = async () => {
+        const payload = { winner: sel.value, penalties: penBox.checked ? "yes" : "no" };
+        try {
+          await apiSaveActualMatch(match.id, payload);
+          if (!state.actualMatches[match.id]) state.actualMatches[match.id] = {};
+          Object.assign(state.actualMatches[match.id], payload);
+          renderScoreboard();
+        } catch (err) {
+          console.error("Failed to save playoff result:", err);
+        }
+      };
+      sel.addEventListener("change", savePlayoff);
+      penBox.addEventListener("change", savePlayoff);
+
+      po.append(sel, penLabel);
+      inputs.appendChild(po);
+    }
+
   // ── User prediction row ───────────────────────────────────────────────────────
   } else {
     const prediction = currentUser.matches?.[match.id];
@@ -496,6 +538,64 @@ export function createMatchRow(match, isActual) {
   return row;
 }
 
+// OTS-21: блок предсказаний плей-офф. Точный счёт (без пенальти) остаётся в hero,
+// а сюда добавляем независимые вопросы: КТО пройдёт дальше + галочка «будет серия
+// пенальти» (сохраняем, баллы пока не начисляем). Для группового этапа → null.
+function buildPlayoffControls(match, prediction, editable) {
+  if (!classifyKnockoutRound(match.group)) return null;
+
+  const wrap = document.createElement("div");
+  wrap.className = "v2mc-playoff";
+
+  let advance = prediction?.advance || "";
+
+  const scoreNote = document.createElement("div");
+  scoreNote.className = "v2mc-po-note";
+  scoreNote.textContent = "Счёт — основное + доп. время, без пенальти";
+
+  const advLabel = document.createElement("div");
+  advLabel.className = "v2mc-po-label";
+  advLabel.textContent = "Кто пройдёт дальше";
+
+  const advRow = document.createElement("div");
+  advRow.className = "v2mc-advance";
+  const btns = [match.home, match.away].map((team) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "v2mc-adv-btn" + (advance === team ? " v2mc-adv-btn--on" : "");
+    b.innerHTML = withFlag(team);
+    b.disabled = !editable;
+    b.addEventListener("click", () => {
+      advance = team;
+      btns.forEach((x) => x.classList.toggle("v2mc-adv-btn--on", x === b));
+    });
+    return b;
+  });
+  advRow.append(...btns);
+
+  const penWrap = document.createElement("label");
+  penWrap.className = "v2mc-penalties";
+  const penBox = document.createElement("input");
+  penBox.type = "checkbox";
+  penBox.className = "v2mc-pen-box";
+  penBox.checked = prediction?.penalties === "yes";
+  penBox.disabled = !editable;
+  const penTxt = document.createElement("span");
+  penTxt.textContent = "Будет серия пенальти";
+  penWrap.append(penBox, penTxt);
+
+  wrap.append(scoreNote, advLabel, advRow, penWrap);
+  return {
+    el: wrap,
+    setAdvance: (team) => {
+      advance = team;
+      btns.forEach((x, i) => x.classList.toggle("v2mc-adv-btn--on", [match.home, match.away][i] === team));
+    },
+    getAdvance: () => advance,
+    getPenalties: () => (penBox.checked ? "yes" : ""),
+  };
+}
+
 // v2 "Матчи сёдня" card — mirrors the result hero: type·date line, flags + score
 // boxes you fill, odds chips, then a player field + confirm button. Reuses the
 // same save / dropdown / validation logic as the v1 row.
@@ -551,12 +651,20 @@ function createMatchRowV2(match) {
   playerInput.placeholder = "Лучший игрок матча";
   controls.appendChild(playerInput);
 
+  // OTS-21: в плей-офф добавляем «кто пройдёт» + галочку пенальти под игроком.
+  const playoff = buildPlayoffControls(match, prediction, editable);
+  if (playoff) controls.appendChild(playoff.el);
+
   homeInput.value   = prediction?.home ?? "";
   awayInput.value   = prediction?.away ?? "";
   playerInput.value = prediction?.bestPlayer ?? "";
   homeInput.disabled = awayInput.disabled = playerInput.disabled = !editable;
 
-  const readData = () => ({ home: homeInput.value.trim(), away: awayInput.value.trim(), bestPlayer: playerInput.value.trim() });
+  const readData = () => {
+    const d = { home: homeInput.value.trim(), away: awayInput.value.trim(), bestPlayer: playerInput.value.trim() };
+    if (playoff) { d.advance = playoff.getAdvance(); d.penalties = playoff.getPenalties(); }
+    return d;
+  };
 
   if (editable) {
     let getPlayers = () => null;
@@ -589,6 +697,7 @@ function createMatchRowV2(match) {
       const data = readData();
       if (data.home === "" || data.away === "") { showBetError("Укажи счёт матча"); return; }
       if (data.home.length > 2 || data.away.length > 2) { showBetError("Счёт: не больше 2 цифр"); return; }
+      if (playoff && !data.advance) { showBetError("Выбери, кто пройдёт дальше"); return; }
       if (!data.bestPlayer) { showBetError("Укажи лучшего игрока матча"); return; }
       const players = getPlayers();
       if (players !== null && players.length > 0) {
@@ -628,6 +737,12 @@ function createMatchRowV2(match) {
         homeInput.value = res.home;
         awayInput.value = res.away;
         if (res.player) playerInput.value = res.player; // игрок тоже выпал на слоте
+        if (playoff) {
+          // наугад: прошедший = победитель по выпавшему счёту, на ничьей — монетка
+          const h = Number(res.home), a = Number(res.away);
+          const pick = h > a ? match.home : a > h ? match.away : (Math.random() < 0.5 ? match.home : match.away);
+          playoff.setAdvance(pick);
+        }
         await saveBet();
       } finally {
         casinoBtn.disabled = false;
@@ -949,6 +1064,24 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     ? `<button type="button" class="share-btn" title="Поделиться картинкой" aria-label="Поделиться картинкой">📲</button>`
     : "";
 
+  // OTS-21: в плей-офф показываем, кто реально прошёл, и разбивку ставки юзера
+  // (проход / счёт / игрок — независимо), чтобы не было путаницы «угадал 1:1, а проход?».
+  const isPlayoff = Boolean(classifyKnockoutRound(match.group));
+  const advancedHtml = (isPlayoff && actual?.winner)
+    ? `<div class="v2rc-advanced">прошёл дальше: ${withFlag(actual.winner)}${actual.penalties === "yes" ? " · по пенальти" : ""}</div>`
+    : "";
+  let myBreakdown = "";
+  if (isPlayoff && (pred?.advance || predHas)) {
+    const mark = (ok) => (ok ? '<span class="v2rc-bd-ok">✓</span>' : '<span class="v2rc-bd-no">✗</span>');
+    const picked = pred?.advance ? withFlag(pred.advance) : "—";
+    myBreakdown = `
+    <div class="v2rc-breakdown">
+      <span class="v2rc-bd-item">Проход ${mark(myInfo.outcomeCorrect)} <span class="muted small">${picked}</span></span>
+      <span class="v2rc-bd-item">Счёт ${mark(myInfo.exactScore)}</span>
+      <span class="v2rc-bd-item">Игрок ${mark(myInfo.bestPlayerCorrect)}</span>
+    </div>`;
+  }
+
   const card = document.createElement("div");
   card.className = "result-card v2rc";
   card.innerHTML = `
@@ -961,11 +1094,13 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
         <span class="v2rc-t">${withFlag(match.away)}</span>
       </div>
       <div class="v2rc-best">⭐ ${actualBestHtml}</div>
+      ${advancedHtml}
     </div>
     <div class="v2rc-grid">
       ${labelRow}
       ${myRow}
     </div>
+    ${myBreakdown}
     ${othersHtml}
   `;
 

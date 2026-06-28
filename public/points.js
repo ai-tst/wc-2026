@@ -78,6 +78,17 @@ export function calculateOutrightsPoints(playerOutrights, actualOutrights) {
   return total;
 }
 
+// OTS-21: кто прошёл дальше в плей-офф. Если счёт (без пенальти) решающий — победитель
+// очевиден; при ничьей (ушли в пенальти) берём явный вердикт админа (actual.winner).
+function resolveWinner(match, homeAct, awayAct, adminEntry) {
+  if (adminEntry?.winner) return adminEntry.winner;
+  const ah = Number(homeAct), aa = Number(awayAct);
+  if (!Number.isNaN(ah) && !Number.isNaN(aa) && ah !== aa) {
+    return ah > aa ? match.home : match.away;
+  }
+  return "";
+}
+
 // Returns the actual result for a match, preferring API-provided scores for ended matches.
 // bestPlayer still comes from admin-entered data (no API source for it).
 export function resolveActualResult(match) {
@@ -89,9 +100,17 @@ export function resolveActualResult(match) {
       away: String(match.awayScore),
       // admin override → auto-detected from API ratings → empty
       bestPlayer: adminEntry?.bestPlayer || match.autoBestPlayer || "",
+      winner: resolveWinner(match, match.homeScore, match.awayScore, adminEntry),
+      penalties: adminEntry?.penalties || "",
     };
   }
-  return adminEntry ?? null;
+  if (adminEntry) {
+    return {
+      ...adminEntry,
+      winner: resolveWinner(match, adminEntry.home, adminEntry.away, adminEntry),
+    };
+  }
+  return null;
 }
 
 // ── Playoff bracket ───────────────────────────────────────────────────────────
@@ -135,27 +154,48 @@ export function calculateBracketBonus(user) {
 // Points a single match is worth to a prediction = base (исход/точный/игрок) PLUS
 // the escalating playoff bonus for knockout rounds. `total` already includes the
 // bonus, so result cards/badges that read `.total` show the full earned points.
+//
+// OTS-21: в плей-офф «исход» — это отдельное предсказание «кто пройдёт дальше»
+// (pred.advance), а НЕ победитель по счёту. Точный счёт по-прежнему считается без
+// серии пенальти. Эти два вопроса независимы: можно угадать счёт и промахнуться в
+// проходе (ничья → пенальти) и наоборот.
+function teamsEq(a, b) {
+  return Boolean(a) && Boolean(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export function matchPointsFor(pred, match) {
   const actual = resolveActualResult(match);
   const base = calculatePointsForMatch(pred, actual);
   const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
-  let bonus = 0;
-  if (tier) {
-    if (base.outcomeCorrect) bonus += tier.outcome;  // угадал, кто прошёл
-    if (base.exactScore)     bonus += tier.exact;    // ещё и точный счёт
+  if (!tier) {
+    // групповой этап — исход по счёту, как раньше
+    return { ...base, bonus: 0, total: base.total };
   }
-  return { ...base, bonus, total: base.total + bonus };
+  // плей-офф: исход = угадан ли прошедший дальше
+  const advanceCorrect = teamsEq(pred?.advance, actual?.winner);
+  const exact  = base.exactScore;
+  const player = base.bestPlayerCorrect;
+  const baseTotal = (exact ? 3 : advanceCorrect ? 1 : 0) + (player ? 2 : 0);
+  let bonus = 0;
+  if (advanceCorrect) bonus += tier.outcome;  // угадал, кто прошёл
+  if (exact)          bonus += tier.exact;    // ещё и точный счёт
+  return {
+    outcomeCorrect: advanceCorrect,
+    exactScore: exact,
+    bestPlayerCorrect: player,
+    bonus,
+    total: baseTotal + bonus,
+  };
 }
 
 export function getUserTotalPoints(user) {
   let total = 0;
+  // matchPointsFor — единый источник правды по матчу: даёт базу + бонус плей-офф и
+  // в плей-офф считает исход по «кто прошёл» (pred.advance), а не по счёту.
   for (const match of activeMatches) {
-    const pred = user.matches?.[match.id];
-    const actual = resolveActualResult(match);
-    total += calculatePointsForMatch(pred, actual).total;
+    total += matchPointsFor(user.matches?.[match.id], match).total;
   }
   total += calculateOutrightsPoints(user.outrights, state.actualOutrights);
-  total += calculateBracketBonus(user);
   total += user.bonusPoints || 0;
   return total;
 }

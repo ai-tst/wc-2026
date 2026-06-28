@@ -3,8 +3,15 @@ import { activeMatches, currentUser } from "./store.js";
 import { withFlag } from "./matches.js";
 import {
   classifyKnockoutRound, BRACKET_BONUS,
-  resolveActualResult, calculatePointsForMatch, calculateBracketBonus,
+  resolveActualResult, matchPointsFor, calculateBracketBonus,
 } from "./points.js";
+
+const teamsEq = (a, b) => Boolean(a) && Boolean(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
+function sideOf(match, teamName) {
+  if (teamsEq(teamName, match.home)) return "home";
+  if (teamsEq(teamName, match.away)) return "away";
+  return null;
+}
 
 // ── Bracket skeleton ────────────────────────────────────────────────────────
 // WC-2026: 32 teams → 1/16 → 1/8 → ¼ → ½ → Final. The API gives a flat fixture
@@ -45,18 +52,20 @@ function slice(all, side, n) {
   return all.slice(start, start + n);
 }
 
-function predWinner(pred) {
-  if (!pred || pred.home === "" || pred.away === "") return null;
+// OTS-21: исход в плей-офф — это явный выбор «кто пройдёт» (pred.advance), а не
+// победитель по счёту. Ничьи в KO решаются пенальти, по счёту победителя не видно.
+function predWinner(pred, match) {
+  if (!pred) return null;
+  if (pred.advance) return sideOf(match, pred.advance);
+  // легаси-ставки без advance: добираем из счёта, если он решающий
+  if (pred.home === "" || pred.away === "") return null;
   const h = Number(pred.home), a = Number(pred.away);
-  if (Number.isNaN(h) || Number.isNaN(a) || h === a) return null; // draws don't exist in KO; ignore
+  if (Number.isNaN(h) || Number.isNaN(a) || h === a) return null;
   return h > a ? "home" : "away";
 }
-function actualWinner(actual) {
-  if (!actual || actual.home === "" || actual.away === "") return null;
-  const h = Number(actual.home), a = Number(actual.away);
-  if (Number.isNaN(h) || Number.isNaN(a)) return null;
-  if (h === a) return null; // KO ties decided on pens — API score may still differ; leave neutral
-  return h > a ? "home" : "away";
+function actualWinner(actual, match) {
+  if (actual?.winner) return sideOf(match, actual.winner);
+  return null;
 }
 
 // one match cell (or an empty skeleton slot)
@@ -69,23 +78,19 @@ function bkMatch(match) {
   }
   const actual = resolveActualResult(match);
   const ended  = actual && actual.home !== "" && actual.away !== "" && actual.home != null && actual.away != null;
-  const aw     = actualWinner(actual);
+  const aw     = actualWinner(actual, match);
   const pred   = currentUser?.matches?.[match.id];
-  const pw     = predWinner(pred);
+  const pw     = predWinner(pred, match);
   const round  = classifyKnockoutRound(match.group);
   const tier   = BRACKET_BONUS[round];
 
   // did your outcome pick hit, and how many bonus pts did it earn?
   let badge = "";
-  if (pred && (pred.home !== "" && pred.away !== "")) {
+  if (pred && (pred.advance || (pred.home !== "" && pred.away !== ""))) {
     if (ended && aw) {
-      const ptsObj = calculatePointsForMatch(pred, actual);
+      const ptsObj = matchPointsFor(pred, match);
       const ok = ptsObj.outcomeCorrect;
-      let gained = 0;
-      if (ok && tier) {
-        gained += tier.outcome;
-        if (ptsObj.exactScore) gained += tier.exact;
-      }
+      const gained = ptsObj.bonus;
       badge = ok
         ? `<span class="bk-badge bk-badge--ok">✓${gained ? " +" + gained : ""}</span>`
         : `<span class="bk-badge bk-badge--no">✗</span>`;

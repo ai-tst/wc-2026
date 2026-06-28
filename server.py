@@ -197,6 +197,8 @@ def init_db():
             home_score  TEXT DEFAULT '',
             away_score  TEXT DEFAULT '',
             best_player TEXT DEFAULT '',
+            advance     TEXT DEFAULT '',
+            penalties   TEXT DEFAULT '',
             PRIMARY KEY (user_id, match_id),
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
@@ -205,7 +207,9 @@ def init_db():
     db.execute("""
         CREATE TABLE IF NOT EXISTS actual_matches (
             match_id    TEXT PRIMARY KEY,
-            best_player TEXT DEFAULT ''
+            best_player TEXT DEFAULT '',
+            winner      TEXT DEFAULT '',
+            penalties   TEXT DEFAULT ''
         )
     """)
 
@@ -249,6 +253,11 @@ def init_db():
     db.execute("""
         ALTER TABLE users ADD COLUMN IF NOT EXISTS design_version TEXT DEFAULT 'v1'
     """)
+    # OTS-21: плей-офф — точный счёт и исход (кто прошёл) разводим в отдельные предсказания.
+    db.execute("ALTER TABLE user_predictions ADD COLUMN IF NOT EXISTS advance   TEXT DEFAULT ''")
+    db.execute("ALTER TABLE user_predictions ADD COLUMN IF NOT EXISTS penalties TEXT DEFAULT ''")
+    db.execute("ALTER TABLE actual_matches   ADD COLUMN IF NOT EXISTS winner    TEXT DEFAULT ''")
+    db.execute("ALTER TABLE actual_matches   ADD COLUMN IF NOT EXISTS penalties TEXT DEFAULT ''")
     db.execute("""
         CREATE TABLE IF NOT EXISTS telegram_reminders_sent (
             match_id TEXT PRIMARY KEY
@@ -349,6 +358,44 @@ def _bracket_bonus(group, outcome, exact):
     if outcome: b += tier[0]
     if exact:   b += tier[1]
     return b
+
+
+# OTS-21: в плей-офф «исход» — это КТО ПРОШЁЛ дальше (с пенальти), а не победитель
+# по счёту. Точный счёт считается без серии пенальти. Зеркало matchPointsFor в points.js.
+def _teams_eq(a, b):
+    return bool(a) and bool(b) and a.strip().lower() == b.strip().lower()
+
+
+def _playoff_winner_from_score(home, away, act_home, act_away):
+    """Если счёт без пенальти решающий — прошедший очевиден (без вердикта админа)."""
+    try:
+        ah, aa = int(act_home), int(act_away)
+    except (TypeError, ValueError):
+        return ""
+    if ah > aa: return home
+    if aa > ah: return away
+    return ""  # ничья → нужен явный winner (кто прошёл по пенальти)
+
+
+def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
+                          act_home, act_away, act_player, act_winner, group):
+    """Возвращает (base_total, advance_ok, exact, player, bonus).
+
+    base_total — очки без бонуса плей-офф (для выбора TG-сообщения 0/1/2/3/5);
+    bonus — эскалирующий бонус раунда. Полные очки = base_total + bonus.
+    """
+    _, _, exact, player = _calc_match_points(
+        pred_home, pred_away, pred_player, act_home, act_away, act_player)
+    tier = _BRACKET_BONUS.get(_classify_knockout(group))
+    if not tier:
+        # групповой этап — исход по счёту, как раньше
+        total, outcome, exact, player = _calc_match_points(
+            pred_home, pred_away, pred_player, act_home, act_away, act_player)
+        return total, outcome, exact, player, 0
+    advance_ok = _teams_eq(pred_advance, act_winner)
+    base = (3 if exact else 1 if advance_ok else 0) + (2 if player else 0)
+    bonus = (tier[0] if advance_ok else 0) + (tier[1] if exact else 0)
+    return base, advance_ok, exact, player, bonus
 
 _RESULT_MSGS = {
     0: [
@@ -534,9 +581,11 @@ def _check_and_send_results():
         sent_rows = db.execute("SELECT match_id, user_id FROM telegram_results_sent").fetchall()
         sent = {(r["match_id"], r["user_id"]) for r in sent_rows}
 
-        # Admin-entered best players
-        admin_best = {r["match_id"]: r["best_player"]
-                      for r in db.execute("SELECT match_id, best_player FROM actual_matches").fetchall()}
+        # Admin-entered best players + плей-офф вердикт (кто прошёл / пенальти)
+        admin_rows = db.execute(
+            "SELECT match_id, best_player, winner, penalties FROM actual_matches").fetchall()
+        admin_best   = {r["match_id"]: r["best_player"] for r in admin_rows}
+        admin_winner = {r["match_id"]: r["winner"]      for r in admin_rows}
 
         users = db.execute(
             "SELECT id, telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL"
@@ -570,6 +619,10 @@ def _check_and_send_results():
             match_name = f"{mj.get('home', '?')} vs {mj.get('away', '?')}"
             auto_best  = mj.get("autoBestPlayer") or ""
             best       = admin_best.get(mid) or auto_best  # admin overrides auto
+            group      = mj.get("group")
+            # Кто прошёл: вердикт админа, иначе очевидный победитель по счёту (без пенальти)
+            winner = admin_winner.get(mid) or _playoff_winner_from_score(
+                mj.get("home", ""), mj.get("away", ""), home_score, away_score)
 
             for user in users:
                 uid = user["id"]
@@ -577,17 +630,16 @@ def _check_and_send_results():
                     continue
 
                 pred = db.execute(
-                    "SELECT home_score, away_score, best_player FROM user_predictions "
+                    "SELECT home_score, away_score, best_player, advance FROM user_predictions "
                     "WHERE match_id=%s AND user_id=%s", [mid, uid]
                 ).fetchone()
                 if not pred:
                     continue  # user didn't bet on this match
 
-                total, outcome, exact, player = _calc_match_points(
-                    pred["home_score"], pred["away_score"], pred["best_player"],
-                    home_score, away_score, best
+                total, outcome, exact, player, bonus = _playoff_match_points(
+                    pred["home_score"], pred["away_score"], pred["best_player"], pred["advance"],
+                    home_score, away_score, best, winner, group
                 )
-                bonus = _bracket_bonus(mj.get("group"), outcome, exact)
 
                 # Вайб-сообщение выбираем по базовому качеству ставки (0/1/2/3/5),
                 # а реальные очки = база + бонус плей-офф.
@@ -596,9 +648,10 @@ def _check_and_send_results():
 
                 # Append breakdown hint for non-zero scores
                 if total > 0:
+                    is_ko = _classify_knockout(group) is not None
                     parts = []
                     if exact:            parts.append("точный счёт +3")
-                    elif outcome:        parts.append("исход +1")
+                    elif outcome:        parts.append(("проход +1" if is_ko else "исход +1"))
                     if player:           parts.append("лучший игрок +2")
                     if bonus:            parts.append(f"бонус плей-офф +{bonus}")
                     text += f"\n<i>({', '.join(parts)})</i>"
@@ -1046,7 +1099,9 @@ def get_predictions():
     rows = db.execute("SELECT * FROM user_predictions WHERE user_id=%s", [uid]).fetchall()
     db.close()
     return jsonify({r["match_id"]: {"home": r["home_score"], "away": r["away_score"],
-                                     "bestPlayer": r["best_player"]} for r in rows})
+                                     "bestPlayer": r["best_player"],
+                                     "advance": r["advance"], "penalties": r["penalties"]}
+                    for r in rows})
 
 
 @app.route("/api/predictions/<match_id>", methods=["PUT"])
@@ -1066,10 +1121,12 @@ def save_prediction(match_id):
         except Exception:
             pass
     db.execute(
-        "INSERT INTO user_predictions (user_id, match_id, home_score, away_score, best_player) "
-        "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id, match_id) DO UPDATE SET "
-        "home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score, best_player=EXCLUDED.best_player",
-        [uid, match_id, data.get("home",""), data.get("away",""), data.get("bestPlayer","")]
+        "INSERT INTO user_predictions (user_id, match_id, home_score, away_score, best_player, advance, penalties) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (user_id, match_id) DO UPDATE SET "
+        "home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score, best_player=EXCLUDED.best_player, "
+        "advance=EXCLUDED.advance, penalties=EXCLUDED.penalties",
+        [uid, match_id, data.get("home",""), data.get("away",""), data.get("bestPlayer",""),
+         data.get("advance",""), data.get("penalties","")]
     )
     db.commit()
     db.close()
@@ -1110,10 +1167,16 @@ def save_actual_match(match_id):
     if err: return err
     data = request.get_json() or {}
     db = get_db()
+    # Частичный апдейт: шлём только то, что изменилось (лучший игрок / победитель / пенальти),
+    # не затирая остальные поля пустыми значениями.
     db.execute(
-        "INSERT INTO actual_matches (match_id, best_player) VALUES (%s, %s) "
-        "ON CONFLICT (match_id) DO UPDATE SET best_player=EXCLUDED.best_player",
-        [match_id, data.get("bestPlayer", "")]
+        "INSERT INTO actual_matches (match_id, best_player, winner, penalties) VALUES (%s, %s, %s, %s) "
+        "ON CONFLICT (match_id) DO UPDATE SET "
+        "best_player = COALESCE(%s, actual_matches.best_player), "
+        "winner      = COALESCE(%s, actual_matches.winner), "
+        "penalties   = COALESCE(%s, actual_matches.penalties)",
+        [match_id, data.get("bestPlayer", "") or "", data.get("winner", "") or "", data.get("penalties", "") or "",
+         data.get("bestPlayer"), data.get("winner"), data.get("penalties")]
     )
     db.commit()
     db.close()
@@ -1129,7 +1192,8 @@ def leaderboard():
 
     users = db.execute("SELECT * FROM users WHERE onboarding_complete=1").fetchall()
 
-    actual_matches = {r["match_id"]: {"bestPlayer": r["best_player"]}
+    actual_matches = {r["match_id"]: {"bestPlayer": r["best_player"],
+                                      "winner": r["winner"], "penalties": r["penalties"]}
                       for r in db.execute("SELECT * FROM actual_matches").fetchall()}
 
     ao = db.execute("SELECT * FROM actual_outrights WHERE id=1").fetchone()
@@ -1139,7 +1203,8 @@ def leaderboard():
     result = []
     for u in users:
         preds = {r["match_id"]: {"home": r["home_score"], "away": r["away_score"],
-                                  "bestPlayer": r["best_player"]}
+                                  "bestPlayer": r["best_player"],
+                                  "advance": r["advance"], "penalties": r["penalties"]}
                  for r in db.execute("SELECT * FROM user_predictions WHERE user_id=%s", [u["id"]]).fetchall()}
 
         uo = db.execute("SELECT * FROM user_outrights WHERE user_id=%s", [u["id"]]).fetchone()
@@ -1171,7 +1236,8 @@ def admin_overview():
 
     users = []
     for u in db.execute("SELECT * FROM users ORDER BY created_at ASC").fetchall():
-        preds = {r["match_id"]: {"home": r["home_score"], "away": r["away_score"], "bestPlayer": r["best_player"]}
+        preds = {r["match_id"]: {"home": r["home_score"], "away": r["away_score"], "bestPlayer": r["best_player"],
+                                 "advance": r["advance"], "penalties": r["penalties"]}
                  for r in db.execute("SELECT * FROM user_predictions WHERE user_id=%s", [u["id"]]).fetchall()}
         uo = db.execute("SELECT * FROM user_outrights WHERE user_id=%s", [u["id"]]).fetchone()
         users.append({
