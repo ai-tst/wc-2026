@@ -2056,6 +2056,17 @@ body.design-v2 .results-actions { display: none; }
 /* ── Playoff bracket ──────────────────────────────────────────────────────── */
 .bracket-btn { font-weight: 700; }
 
+/* ── Ссылка на ТГ-бота, оформлена как secondary-btn (в одном ряду с шапкой) ── */
+.tg-bot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+}
+.tg-bot-btn:hover { text-decoration: none; }
+.tg-bot-btn .tg-icon { line-height: 1; }
+
 /* ── «Предложить улучшение» link styled as a button ───────────────────────── */
 .feature-request-btn {
   font-family: inherit;
