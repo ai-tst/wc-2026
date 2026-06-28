@@ -164,3 +164,12 @@ export function getUserPlayoffPoints(user) {
   }
   return total;
 }
+
+// Стартовал ли плей-офф? true, как только у хотя бы одного knockout-матча есть
+// фактический результат. Пока false — показываем приятный пустой стейт вместо
+// голого списка нулей.
+export function playoffHasStarted() {
+  return activeMatches.some(
+    (m) => classifyKnockoutRound(m.group) && resolveActualResult(m)
+  );
+}

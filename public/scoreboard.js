@@ -1,6 +1,6 @@
 import { state, currentUser } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
-import { getUserTotalPoints, getUserPlayoffPoints } from "./points.js";
+import { getUserTotalPoints, getUserPlayoffPoints, playoffHasStarted } from "./points.js";
 
 function buildRows(users, getPoints) {
   return users
@@ -27,9 +27,12 @@ function renderTable(tbodyId, rows) {
 export function renderScoreboard() {
   const users = state.users;
 
-  // Playoff table (main)
+  // Playoff table (main, in focus) — очки только за матчи плей-офф, у всех с нуля.
   renderTable("scoreboard-playoff-body", buildRows(users, getUserPlayoffPoints));
 
-  // Full table (group + all)
+  // Группа (легаси, в фоне, свёрнута) — текущая итоговая таблица, ачивки сохранены.
   renderTable("scoreboard-body", buildRows(users, getUserTotalPoints));
+
+  // Пустой стейт плей-офф: показываем, пока ни один матч на вылет не сыгран.
+  $("playoff-empty-state")?.classList.toggle("hidden", playoffHasStarted());
 }
