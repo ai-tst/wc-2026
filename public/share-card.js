@@ -7,8 +7,8 @@
 // Картинка = маркетинговый инструмент: на ней крупно лого «Отсос» и адрес сайта,
 // чтобы расшаренная карточка приводила новых чуваков с эффектом «ВАУ».
 
-const SITE_URL = "https://51.250.35.235.sslip.io";
-const SITE_LABEL = "51.250.35.235.sslip.io";
+const SITE_URL = "https://tst-wc.ru";
+const SITE_LABEL = "tst-wc.ru";
 const FLAG_CDN = (code) => `https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/flags/4x3/${code}.svg`;
 const LOGO_SRC = "otsos-logo.png";
 

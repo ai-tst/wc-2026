@@ -13,7 +13,7 @@ bash tests/run.sh
 bash tests/run.sh --logic
 
 # Smoke по проду вместо localhost
-BASE_URL=https://51.250.35.235.sslip.io bash tests/run.sh
+BASE_URL=https://tst-wc.ru bash tests/run.sh
 ```
 
 Код возврата `0` — всё зелёное. Любой другой — есть провал, релиз стопаем.
