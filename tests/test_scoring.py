@@ -74,16 +74,19 @@ ko.case("Final -> F", lambda: eq(classify("Final"), "F"))
 ko.case("групповой -> None", lambda: eq(classify("Group A"), None))
 
 # честный бонус плей-офф (golden — синхронен с BRACKET_BONUS в points.js, OTS-20)
+# сигнатура: _bracket_bonus(group, advance_ok, exact, player); точный заменяет исход
 brk = suite("Бонус плей-офф (_bracket_bonus)")
-brk.case("групповой -> 0", lambda: eq(bonus("Group A", True, True), 0))
-brk.case("R32 исход -> 1", lambda: eq(bonus("Round of 32", True, False), 1))
-brk.case("R32 точный -> только исход 1 (точный +0)", lambda: eq(bonus("Round of 32", True, True), 1))
-brk.case("R16 точный -> исход 1 + точный 1 = 2", lambda: eq(bonus("Round of 16", True, True), 2))
-brk.case("QF точный -> 2 + 1 = 3", lambda: eq(bonus("Quarter-final", True, True), 3))
-brk.case("SF точный -> 4 + 2 = 6", lambda: eq(bonus("Semi-final", True, True), 6))
-brk.case("Финал точный -> 8 + 4 = 12", lambda: eq(bonus("Final", True, True), 12))
-brk.case("Финал исход без точного -> 8", lambda: eq(bonus("Final", True, False), 8))
-brk.case("исход не угадан -> 0", lambda: eq(bonus("Final", False, False), 0))
+brk.case("групповой -> 0", lambda: eq(bonus("Group A", True, True, True), 0))
+brk.case("R32 проход -> 1", lambda: eq(bonus("Round of 32", True, False, False), 1))
+brk.case("R32 точный (заменяет исход) -> 2", lambda: eq(bonus("Round of 32", True, True, False), 2))
+brk.case("R32 проход + игрок -> 1 + 1 = 2", lambda: eq(bonus("Round of 32", True, False, True), 2))
+brk.case("R32 точный + игрок -> 2 + 1 = 3", lambda: eq(bonus("Round of 32", True, True, True), 3))
+brk.case("QF точный + игрок -> 3 + 2 = 5", lambda: eq(bonus("Quarter-final", True, True, True), 5))
+brk.case("SF проход + игрок -> 2 + 2 = 4", lambda: eq(bonus("Semi-final", True, False, True), 4))
+brk.case("Финал точный + игрок -> 4 + 3 = 7", lambda: eq(bonus("Final", True, True, True), 7))
+brk.case("Финал проход без точного -> 3", lambda: eq(bonus("Final", True, False, False), 3))
+brk.case("точный при непройденном (пенальти) -> 4 (точный всё равно)", lambda: eq(bonus("Final", False, True, False), 4))
+brk.case("ничего не угадал -> 0", lambda: eq(bonus("Final", False, False, False), 0))
 
 
 # OTS-21: плей-офф — исход (кто прошёл) считается по выбору advance, а не по счёту.
@@ -107,18 +110,18 @@ po.case("R32 проход верный, счёт мимо -> 1+1=2",
 # точный счёт + проход
 po.case("R16 точный + проход -> 3+(1+1)=5",
         lambda: eq(full("2", "0", "X", "Дом", "2", "0", "Y", "Дом", "Round of 16"), 5))
-po.case("Финал точный + проход -> 3+(8+4)=15",
-        lambda: eq(full("2", "1", "X", "Дом", "2", "1", "Y", "Дом", "Final"), 15))
-# независимость: точный счёт, но проход выбран неверно -> только счёт + точный-бонус
-po.case("R16 точный счёт, проход НЕверный -> 3+точный(1)=4 (исход 0)",
-        lambda: eq(full("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), 4))
+po.case("Финал точный + проход -> 3+точный(4)=7",
+        lambda: eq(full("2", "1", "X", "Дом", "2", "1", "Y", "Дом", "Final"), 7))
+# независимость: точный счёт, но проход выбран неверно -> счёт + точный-бонус (точный всё равно)
+po.case("R16 точный счёт, проход НЕверный -> 3+точный(2)=5",
+        lambda: eq(full("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), 5))
 po.case("R16 точный счёт, проход НЕверный: advance_ok=False",
-        lambda: eq(pp("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), (3, False, True, False, 1)))
+        lambda: eq(pp("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), (3, False, True, False, 2)))
 # ничья -> пенальти: счёт без пенальти точный, проход по вердикту админа
-po.case("QF ничья 1:1, точный + проход верный -> 3+(2+1)=6",
+po.case("QF ничья 1:1, точный + проход верный -> 3+точный(3)=6",
         lambda: eq(full("1", "1", "X", "Дом", "1", "1", "Y", "Дом", "Quarter-final"), 6))
-po.case("QF ничья 1:1, точный есть, проход НЕверный -> 3+точный(1)=4",
-        lambda: eq(full("1", "1", "X", "Гости", "1", "1", "Y", "Дом", "Quarter-final"), 4))
+po.case("QF ничья 1:1, точный есть, проход НЕверный -> 3+точный(3)=6",
+        lambda: eq(full("1", "1", "X", "Гости", "1", "1", "Y", "Дом", "Quarter-final"), 6))
 po.case("всё мимо -> 0",
         lambda: eq(full("0", "3", "X", "Гости", "2", "0", "Y", "Дом", "Quarter-final"), 0))
 

@@ -130,17 +130,17 @@ export function classifyKnockoutRound(group) {
 // Escalating bracket bonus, ADDED on top of normal match points (исход +1 /
 // точный +3 / игрок +2 still apply to playoff matches). Deeper round = more.
 //
-// Схема честных коэффициентов плей-офф (решение CEO, OTS-20): бонус начисляется
-// отдельно за угаданный ИСХОД и за ТОЧНЫЙ СЧЁТ, оба растут к финалу. Матчей с
-// каждым раундом вдвое меньше, а вес раунда — соизмеримый: 1/16 в сумме самый
-// тяжёлый раунд (16 матчей × 1), поэтому скилл решает уже на старте, а не только
-// рандом в 1/4–финале. Игрок матча остаётся плоским базовым +2, без эскалации.
+// Схема честных коэффициентов плей-офф (решение CEO, OTS-20): бонус СВЕРХУ
+// базовых очков, отдельно за ИСХОД / ТОЧНЫЙ СЧЁТ / ИГРОКА, растёт к финалу.
+// Семантика как в базовых очках: точный счёт ЗАМЕНЯЕТ исход (не суммируется с
+// ним), игрок начисляется отдельно. Т.е. бонус = (точный ? exact : исход ?
+// outcome : 0) + (игрок ? player : 0).
 export const BRACKET_BONUS = {
-  R32: { outcome: 1, exact: 0 },
-  R16: { outcome: 1, exact: 1 },
-  QF:  { outcome: 2, exact: 1 },
-  SF:  { outcome: 4, exact: 2 },
-  F:   { outcome: 8, exact: 4 },
+  R32: { outcome: 1, exact: 2, player: 1 },
+  R16: { outcome: 1, exact: 2, player: 1 },
+  QF:  { outcome: 2, exact: 3, player: 2 },
+  SF:  { outcome: 2, exact: 3, player: 2 },
+  F:   { outcome: 3, exact: 4, player: 3 },
 };
 
 export function calculateBracketBonus(user) {
@@ -177,8 +177,10 @@ export function matchPointsFor(pred, match) {
   const player = base.bestPlayerCorrect;
   const baseTotal = (exact ? 3 : advanceCorrect ? 1 : 0) + (player ? 2 : 0);
   let bonus = 0;
-  if (advanceCorrect) bonus += tier.outcome;  // угадал, кто прошёл
-  if (exact)          bonus += tier.exact;    // ещё и точный счёт
+  // Бонус сверху — как в базе: точный счёт заменяет исход, игрок отдельно.
+  if (exact)               bonus += tier.exact;    // точный счёт
+  else if (advanceCorrect) bonus += tier.outcome;  // угадал, кто прошёл
+  if (player)              bonus += tier.player;   // лучший игрок матча
   return {
     outcomeCorrect: advanceCorrect,
     exactScore: exact,

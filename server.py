@@ -343,20 +343,22 @@ def _classify_knockout(group):
     return None
 
 _BRACKET_BONUS = {
-    "R32": (1, 0),
-    "R16": (1, 1),
-    "QF":  (2, 1),
-    "SF":  (4, 2),
-    "F":   (8, 4),
-}  # (исход, точный счёт)
+    "R32": (1, 2, 1),
+    "R16": (1, 2, 1),
+    "QF":  (2, 3, 2),
+    "SF":  (2, 3, 2),
+    "F":   (3, 4, 3),
+}  # (исход, точный счёт, игрок)
 
-def _bracket_bonus(group, outcome, exact):
+def _bracket_bonus(group, advance_ok, exact, player):
+    """Бонус сверху, как в базе: точный счёт заменяет исход, игрок отдельно."""
     tier = _BRACKET_BONUS.get(_classify_knockout(group))
     if not tier:
         return 0
     b = 0
-    if outcome: b += tier[0]
-    if exact:   b += tier[1]
+    if exact:        b += tier[1]   # точный счёт (заменяет исход)
+    elif advance_ok: b += tier[0]   # угадал, кто прошёл
+    if player:       b += tier[2]   # лучший игрок матча
     return b
 
 
@@ -384,17 +386,14 @@ def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
     base_total — очки без бонуса плей-офф (для выбора TG-сообщения 0/1/2/3/5);
     bonus — эскалирующий бонус раунда. Полные очки = base_total + bonus.
     """
-    _, _, exact, player = _calc_match_points(
+    total, outcome, exact, player = _calc_match_points(
         pred_home, pred_away, pred_player, act_home, act_away, act_player)
-    tier = _BRACKET_BONUS.get(_classify_knockout(group))
-    if not tier:
+    if _classify_knockout(group) is None:
         # групповой этап — исход по счёту, как раньше
-        total, outcome, exact, player = _calc_match_points(
-            pred_home, pred_away, pred_player, act_home, act_away, act_player)
         return total, outcome, exact, player, 0
     advance_ok = _teams_eq(pred_advance, act_winner)
     base = (3 if exact else 1 if advance_ok else 0) + (2 if player else 0)
-    bonus = (tier[0] if advance_ok else 0) + (tier[1] if exact else 0)
+    bonus = _bracket_bonus(group, advance_ok, exact, player)
     return base, advance_ok, exact, player, bonus
 
 _RESULT_MSGS = {

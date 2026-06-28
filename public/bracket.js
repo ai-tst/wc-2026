@@ -130,7 +130,7 @@ export function renderBracket() {
     const cells = slice(all, c.side, c.n);
     const padded = Array.from({ length: c.n }, (_, i) => cells[i] || null);
     const t = BRACKET_BONUS[c.key];
-    const bonusChip = `<span class="bk-bonus${c.key === "F" ? " bk-bonus--champ" : ""}">исход +${t.outcome}${t.exact ? " · точный +" + t.exact : ""}</span>`;
+    const bonusChip = `<span class="bk-bonus${c.key === "F" ? " bk-bonus--champ" : ""}" title="бонус: исход +${t.outcome} · точный счёт +${t.exact} · игрок +${t.player}">+${t.outcome}·+${t.exact}·+${t.player}</span>`;
     // header only on the first time we show a round label per side (keep all for clarity)
     return `<div class="bk-col bk-col--${c.key.toLowerCase()} bk-col--${c.side.toLowerCase()}">
       <div class="bk-col-head">
@@ -150,11 +150,9 @@ export function renderBracket() {
   root.innerHTML = `
     <div class="bk-top">
       <div class="bk-legend">
-        <span><b>1/16</b> исход +1</span>
-        <span><b>1/8</b> +1 · точный +1</span>
-        <span><b>1/4</b> +2 · точный +1</span>
-        <span><b>1/2</b> +4 · точный +2</span>
-        <span><b>финал</b> +8 · точный +4</span>
+        <span><b>1/16–1/8</b> исход +1 · точный +2 · игрок +1</span>
+        <span><b>1/4–1/2</b> исход +2 · точный +3 · игрок +2</span>
+        <span><b>финал</b> исход +3 · точный +4 · игрок +3</span>
       </div>
       <div class="bk-mybonus">Твой бонус за сетку: <b>+${myBonus}</b></div>
     </div>
