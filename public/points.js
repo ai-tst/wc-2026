@@ -54,10 +54,12 @@ export function calculatePointsForMatch(pred, actual) {
   const targets = Array.isArray(actual.bestPlayer) ? actual.bestPlayer : (actual.bestPlayer ? [actual.bestPlayer] : []);
   const bestPlayerCorrect = targets.length > 0 && targets.some(t => playerNamesMatch(pred.bestPlayer, t));
 
+  // OTS-30: исход и точный счёт СУММИРУЮТСЯ (точный ⇒ исход тоже верен).
+  const g = STAGE_POINTS.group;
   let total = 0;
-  if (exactScore) total += 3;
-  else if (outcomeCorrect) total += 1;
-  if (bestPlayerCorrect) total += 2;
+  if (outcomeCorrect)    total += g.outcome;
+  if (exactScore)        total += g.exact;
+  if (bestPlayerCorrect) total += g.player;
 
   return { total, outcomeCorrect, exactScore, bestPlayerCorrect };
 }
@@ -127,38 +129,41 @@ export function classifyKnockoutRound(group) {
   return null;
 }
 
-// Escalating bracket bonus, ADDED on top of normal match points (исход +1 /
-// точный +3 / игрок +2 still apply to playoff matches). Deeper round = more.
-//
-// Схема честных коэффициентов плей-офф (решение CEO, OTS-20): бонус СВЕРХУ
-// базовых очков, отдельно за ИСХОД / ТОЧНЫЙ СЧЁТ / ИГРОКА, растёт к финалу.
-// Семантика как в базовых очках: точный счёт ЗАМЕНЯЕТ исход (не суммируется с
-// ним), игрок начисляется отдельно. Т.е. бонус = (точный ? exact : исход ?
-// outcome : 0) + (игрок ? player : 0).
-export const BRACKET_BONUS = {
-  R32: { outcome: 1, exact: 2, player: 1 },
-  R16: { outcome: 1, exact: 2, player: 1 },
-  QF:  { outcome: 2, exact: 3, player: 2 },
-  SF:  { outcome: 2, exact: 3, player: 2 },
-  F:   { outcome: 3, exact: 4, player: 3 },
+// OTS-30: плоские таблицы очков по этапам — БЕЗ эскалирующего бонуса (его убрали,
+// слишком путал). Исход и точный счёт СУММИРУЮТСЯ (раньше точный заменял исход),
+// игрок отдельно. Чем глубже раунд — тем дороже матч. Зеркало _STAGE_POINTS в
+// server.py (golden-тесты сверяют значения).
+export const STAGE_POINTS = {
+  group: { outcome: 1, exact: 2, player: 2 },
+  R32:   { outcome: 2, exact: 4, player: 3 },
+  R16:   { outcome: 2, exact: 4, player: 3 },
+  QF:    { outcome: 3, exact: 5, player: 4 },
+  SF:    { outcome: 3, exact: 5, player: 4 },
+  F:     { outcome: 4, exact: 6, player: 5 },
 };
 
+export function stagePoints(group) {
+  return STAGE_POINTS[classifyKnockoutRound(group)] || STAGE_POINTS.group;
+}
+
+// Сумма очков игрока ТОЛЬКО за матчи плей-офф (для бэйджа на сетке). Раньше это
+// был «бонус за сетку»; теперь бонуса нет — показываем реальные очки плей-офф.
 export function calculateBracketBonus(user) {
   let total = 0;
   for (const match of activeMatches) {
-    total += matchPointsFor(user.matches?.[match.id], match).bonus;
+    if (!classifyKnockoutRound(match.group)) continue;
+    total += matchPointsFor(user.matches?.[match.id], match).total;
   }
   return total;
 }
 
-// Points a single match is worth to a prediction = base (исход/точный/игрок) PLUS
-// the escalating playoff bonus for knockout rounds. `total` already includes the
-// bonus, so result cards/badges that read `.total` show the full earned points.
+// Points a single match is worth to a prediction по плоской таблице этапа.
+// `total` — полные очки матча (исход + точный счёт + игрок, всё суммируется).
 //
 // OTS-21/OTS-27: в плей-офф «исход» — это «кто пройдёт дальше». Берём явный пик
 // pred.advance, а если его нет — выводим из предсказанного счёта (как в группе),
 // чтобы игрок, заполнивший только счёт, получал очко за угаданный исход. Точный
-// счёт по-прежнему считается без серии пенальти.
+// счёт считается по осн.+доп. без серии пенальти.
 function teamsEq(a, b) {
   return Boolean(a) && Boolean(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
 }
@@ -180,27 +185,24 @@ function predictedAdvance(pred, match) {
 export function matchPointsFor(pred, match) {
   const actual = resolveActualResult(match);
   const base = calculatePointsForMatch(pred, actual);
-  const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
-  if (!tier) {
-    // групповой этап — исход по счёту, как раньше
+  const round = classifyKnockoutRound(match.group);
+  const pts = STAGE_POINTS[round] || STAGE_POINTS.group;
+  if (!round) {
+    // групповой этап — calculatePointsForMatch уже посчитал по групповой таблице
     return { ...base, bonus: 0, total: base.total };
   }
-  // плей-офф: исход = угадан ли прошедший дальше (пик advance или вывод из счёта)
+  // плей-офф: исход = угадан ли прошедший дальше (пик advance или вывод из счёта);
+  // точный счёт и исход суммируются, игрок отдельно.
   const advanceCorrect = teamsEq(predictedAdvance(pred, match), actual?.winner);
   const exact  = base.exactScore;
   const player = base.bestPlayerCorrect;
-  const baseTotal = (exact ? 3 : advanceCorrect ? 1 : 0) + (player ? 2 : 0);
-  let bonus = 0;
-  // Бонус сверху — как в базе: точный счёт заменяет исход, игрок отдельно.
-  if (exact)               bonus += tier.exact;    // точный счёт
-  else if (advanceCorrect) bonus += tier.outcome;  // угадал, кто прошёл
-  if (player)              bonus += tier.player;   // лучший игрок матча
+  const total = (advanceCorrect ? pts.outcome : 0) + (exact ? pts.exact : 0) + (player ? pts.player : 0);
   return {
     outcomeCorrect: advanceCorrect,
     exactScore: exact,
     bestPlayerCorrect: player,
-    bonus,
-    total: baseTotal + bonus,
+    bonus: 0,
+    total,
   };
 }
 

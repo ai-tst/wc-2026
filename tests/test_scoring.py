@@ -20,7 +20,7 @@ calc = server._calc_match_points
 pmatch = server._players_match
 norm = server._norm_player
 classify = server._classify_knockout
-bonus = server._bracket_bonus
+stage = server._stage_points
 
 
 # _calc_match_points возвращает (total, outcome, exact, player)
@@ -73,72 +73,71 @@ ko.case("Semi-final -> SF (а не F)", lambda: eq(classify("Semi-final"), "SF")
 ko.case("Final -> F", lambda: eq(classify("Final"), "F"))
 ko.case("групповой -> None", lambda: eq(classify("Group A"), None))
 
-# честный бонус плей-офф (golden — синхронен с BRACKET_BONUS в points.js, OTS-20)
-# сигнатура: _bracket_bonus(group, advance_ok, exact, player); точный заменяет исход
-brk = suite("Бонус плей-офф (_bracket_bonus)")
-brk.case("групповой -> 0", lambda: eq(bonus("Group A", True, True, True), 0))
-brk.case("R32 проход -> 1", lambda: eq(bonus("Round of 32", True, False, False), 1))
-brk.case("R32 точный (заменяет исход) -> 2", lambda: eq(bonus("Round of 32", True, True, False), 2))
-brk.case("R32 проход + игрок -> 1 + 1 = 2", lambda: eq(bonus("Round of 32", True, False, True), 2))
-brk.case("R32 точный + игрок -> 2 + 1 = 3", lambda: eq(bonus("Round of 32", True, True, True), 3))
-brk.case("QF точный + игрок -> 3 + 2 = 5", lambda: eq(bonus("Quarter-final", True, True, True), 5))
-brk.case("SF проход + игрок -> 2 + 2 = 4", lambda: eq(bonus("Semi-final", True, False, True), 4))
-brk.case("Финал точный + игрок -> 4 + 3 = 7", lambda: eq(bonus("Final", True, True, True), 7))
-brk.case("Финал проход без точного -> 3", lambda: eq(bonus("Final", True, False, False), 3))
-brk.case("точный при непройденном (пенальти) -> 4 (точный всё равно)", lambda: eq(bonus("Final", False, True, False), 4))
-brk.case("ничего не угадал -> 0", lambda: eq(bonus("Final", False, False, False), 0))
+# OTS-30: плоские таблицы очков по этапам (golden — синхронны со STAGE_POINTS в points.js)
+stg = suite("Таблицы очков по этапам (_stage_points, OTS-30)")
+stg.case("группа -> 1/2/2", lambda: eq(stage("Group A"), {"outcome": 1, "exact": 2, "player": 2}))
+stg.case("R32 -> 2/4/3",    lambda: eq(stage("Round of 32"), {"outcome": 2, "exact": 4, "player": 3}))
+stg.case("R16 -> 2/4/3",    lambda: eq(stage("Round of 16"), {"outcome": 2, "exact": 4, "player": 3}))
+stg.case("QF -> 3/5/4",     lambda: eq(stage("Quarter-final"), {"outcome": 3, "exact": 5, "player": 4}))
+stg.case("SF -> 3/5/4",     lambda: eq(stage("Semi-final"), {"outcome": 3, "exact": 5, "player": 4}))
+stg.case("Финал -> 4/6/5",  lambda: eq(stage("Final"), {"outcome": 4, "exact": 6, "player": 5}))
 
 
-# OTS-21: плей-офф — исход (кто прошёл) считается по выбору advance, а не по счёту.
+# OTS-21/30: плей-офф — исход (кто прошёл) по выбору advance; исход и точный счёт
+# СУММИРУЮТСЯ, без бонуса. _playoff_match_points -> (total, outcome, exact, player, pts).
 teams_eq = server._teams_eq
 winner_from_score = server._playoff_winner_from_score
-pp = server._playoff_match_points  # -> (base_total, advance_ok, exact, player, bonus)
-full = lambda *a: (lambda r: r[0] + r[4])(pp(*a))  # полные очки = база + бонус
+pp = server._playoff_match_points
+full = lambda *a: pp(*a)[0]        # полные очки матча
+quad = lambda *a: pp(*a)[:4]       # (total, outcome, exact, player) без таблицы
 
-po = suite("Плей-офф: исход = кто прошёл (_playoff_match_points, OTS-21)")
+po = suite("Плей-офф: исход = кто прошёл, исход+точный суммируются (OTS-30)")
 # сопоставление команд
 po.case("teams_eq игнорит регистр/пробелы", lambda: ok(teams_eq("Дом", "  дом ")))
 po.case("teams_eq разные = нет", lambda: ok(not teams_eq("Дом", "Гости")))
 po.case("winner_from_score решающий", lambda: eq(winner_from_score("Дом", "Гости", 2, 0), "Дом"))
 po.case("winner_from_score ничья -> '' (нужен админ)", lambda: eq(winner_from_score("Дом", "Гости", 1, 1), ""))
-# групповой этап — падаем в старую механику (исход по счёту), бонус 0
-po.case("группа: исход по счёту, бонус 0",
-        lambda: eq(pp("1", "0", "X", "Дом", "2", "0", "Y", "Дом", "Group A"), (1, True, False, False, 0)))
-# плей-офф: проход верный, счёт мимо
-po.case("R32 проход верный, счёт мимо -> 1+1=2",
+# групповой этап — исход по счёту, таблица группы
+po.case("группа: исход по счёту 1",
+        lambda: eq(quad("1", "0", "X", "Дом", "2", "0", "Y", "Дом", "Group A"), (1, True, False, False)))
+po.case("группа: точный счёт = исход+точный = 1+2 = 3",
+        lambda: eq(quad("2", "0", "X", "Дом", "2", "0", "Y", "Дом", "Group A"), (3, True, True, False)))
+# плей-офф: проход верный, счёт мимо -> только исход этапа
+po.case("R32 проход верный, счёт мимо -> 2",
         lambda: eq(full("1", "0", "X", "Дом", "2", "0", "Y", "Дом", "Round of 32"), 2))
-# точный счёт + проход
-po.case("R16 точный + проход -> 3+(1+1)=5",
-        lambda: eq(full("2", "0", "X", "Дом", "2", "0", "Y", "Дом", "Round of 16"), 5))
-po.case("Финал точный + проход -> 3+точный(4)=7",
-        lambda: eq(full("2", "1", "X", "Дом", "2", "1", "Y", "Дом", "Final"), 7))
-# независимость: точный счёт, но проход выбран неверно -> счёт + точный-бонус (точный всё равно)
-po.case("R16 точный счёт, проход НЕверный -> 3+точный(2)=5",
-        lambda: eq(full("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), 5))
-po.case("R16 точный счёт, проход НЕверный: advance_ok=False",
-        lambda: eq(pp("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), (3, False, True, False, 2)))
+# точный счёт + проход СУММИРУЮТСЯ
+po.case("R16 точный + проход -> исход2 + точный4 = 6",
+        lambda: eq(full("2", "0", "X", "Дом", "2", "0", "Y", "Дом", "Round of 16"), 6))
+po.case("Финал точный + проход -> исход4 + точный6 = 10",
+        lambda: eq(full("2", "1", "X", "Дом", "2", "1", "Y", "Дом", "Final"), 10))
+po.case("SF точный + проход + игрок -> 3+5+4 = 12",
+        lambda: eq(full("2", "1", "Messi", "Дом", "2", "1", "Messi", "Дом", "Semi-final"), 12))
+# независимость: точный счёт, но проход выбран неверно -> только точный (исход не капает)
+po.case("R16 точный счёт, проход НЕверный -> только точный4 = 4",
+        lambda: eq(full("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), 4))
+po.case("R16 точный счёт, проход НЕверный: outcome=False",
+        lambda: eq(quad("2", "0", "X", "Гости", "2", "0", "Y", "Дом", "Round of 16"), (4, False, True, False)))
 # ничья -> пенальти: счёт без пенальти точный, проход по вердикту админа
-po.case("QF ничья 1:1, точный + проход верный -> 3+точный(3)=6",
-        lambda: eq(full("1", "1", "X", "Дом", "1", "1", "Y", "Дом", "Quarter-final"), 6))
-po.case("QF ничья 1:1, точный есть, проход НЕверный -> 3+точный(3)=6",
-        lambda: eq(full("1", "1", "X", "Гости", "1", "1", "Y", "Дом", "Quarter-final"), 6))
+po.case("QF ничья 1:1, точный + проход верный -> 3+5 = 8",
+        lambda: eq(full("1", "1", "X", "Дом", "1", "1", "Y", "Дом", "Quarter-final"), 8))
+po.case("QF ничья 1:1, точный есть, проход НЕверный -> только точный5 = 5",
+        lambda: eq(full("1", "1", "X", "Гости", "1", "1", "Y", "Дом", "Quarter-final"), 5))
 po.case("всё мимо -> 0",
         lambda: eq(full("0", "3", "X", "Гости", "2", "0", "Y", "Дом", "Quarter-final"), 0))
 
 # OTS-27: advance пустой -> исход выводим из предсказанного счёта (как в группе).
-# Сигнатура с командами матча: ..., group, match_home, match_away.
-po.case("R32 advance пустой, счёт-исход верный, счёт мимо -> 1+1=2",
+po.case("R32 advance пустой, счёт-исход верный, счёт мимо -> 2",
         lambda: eq(full("0", "2", "X", "", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"), 2))
-po.case("R32 advance пустой, точный счёт -> 3+точный(2)=5",
-        lambda: eq(full("0", "1", "X", "", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"), 5))
+po.case("R32 advance пустой, точный счёт -> исход2 + точный4 = 6",
+        lambda: eq(full("0", "1", "X", "", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"), 6))
 po.case("R32 advance пустой, исход мимо -> 0",
         lambda: eq(full("2", "0", "X", "", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"), 0))
 po.case("R32 advance пустой, предсказана ничья -> исход не выбран, 0",
-        lambda: eq(pp("1", "1", "X", "", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"),
-                   (0, False, False, False, 0)))
-po.case("R32 advance задан, бьёт счёт: advance верный, счёт-исход мимо -> 1+1=2",
+        lambda: eq(quad("1", "1", "X", "", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"),
+                   (0, False, False, False)))
+po.case("R32 advance задан, бьёт счёт: advance верный, счёт-исход мимо -> 2",
         lambda: eq(full("2", "0", "X", "Гости", "0", "1", "Y", "Гости", "Round of 32", "Дом", "Гости"), 2))
 
 
 if __name__ == "__main__":
-    main(points, edge, players, nrm, ko, brk, po)
+    main(points, edge, players, nrm, ko, stg, po)

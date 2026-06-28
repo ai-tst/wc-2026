@@ -2,7 +2,7 @@ import { $, escapeHtml } from "./utils.js";
 import { activeMatches, currentUser } from "./store.js";
 import { withFlag } from "./matches.js";
 import {
-  classifyKnockoutRound, BRACKET_BONUS,
+  classifyKnockoutRound, STAGE_POINTS,
   resolveActualResult, matchPointsFor, calculateBracketBonus,
 } from "./points.js";
 
@@ -82,15 +82,15 @@ function bkMatch(match) {
   const pred   = currentUser?.matches?.[match.id];
   const pw     = predWinner(pred, match);
   const round  = classifyKnockoutRound(match.group);
-  const tier   = BRACKET_BONUS[round];
+  const tier   = STAGE_POINTS[round];
 
-  // did your outcome pick hit, and how many bonus pts did it earn?
+  // did your outcome pick hit, and how many pts did the match earn?
   let badge = "";
   if (pred && (pred.advance || (pred.home !== "" && pred.away !== ""))) {
     if (ended && aw) {
       const ptsObj = matchPointsFor(pred, match);
       const ok = ptsObj.outcomeCorrect;
-      const gained = ptsObj.bonus;
+      const gained = ptsObj.total;
       badge = ok
         ? `<span class="bk-badge bk-badge--ok">✓${gained ? " +" + gained : ""}</span>`
         : `<span class="bk-badge bk-badge--no">✗</span>`;
@@ -129,8 +129,8 @@ export function renderBracket() {
     const all  = matchesForRound(c.key);
     const cells = slice(all, c.side, c.n);
     const padded = Array.from({ length: c.n }, (_, i) => cells[i] || null);
-    const t = BRACKET_BONUS[c.key];
-    const bonusChip = `<span class="bk-bonus${c.key === "F" ? " bk-bonus--champ" : ""}" title="бонус: исход +${t.outcome} · точный счёт +${t.exact} · игрок +${t.player}">+${t.outcome}·+${t.exact}·+${t.player}</span>`;
+    const t = STAGE_POINTS[c.key];
+    const bonusChip = `<span class="bk-bonus${c.key === "F" ? " bk-bonus--champ" : ""}" title="очки за матч: исход +${t.outcome} · точный счёт +${t.exact} · игрок +${t.player}">+${t.outcome}·+${t.exact}·+${t.player}</span>`;
     // header only on the first time we show a round label per side (keep all for clarity)
     return `<div class="bk-col bk-col--${c.key.toLowerCase()} bk-col--${c.side.toLowerCase()}">
       <div class="bk-col-head">
@@ -144,17 +144,17 @@ export function renderBracket() {
   }).join("");
 
   const hint = koCount === 0
-    ? `<p class="bk-hint">Плей-офф ещё не начался — висит скелет. Команды и счёт подставятся автоматически, как только матчи появятся в расписании. Ставки на счёт делаешь в «Матчах», бонус за глубину капает сюда.</p>`
-    : `<p class="bk-hint">Зелёным — кто прошёл / твой угаданный исход. <span class="bk-badge bk-badge--pick">ТЫ</span> — твой пик ждёт результата. Точный счёт ставишь в «Матчах». Чем глубже раунд — тем жирнее бонус, но ранние раунды берут массой матчей, так что забивать на 1/16 — себе дороже.</p>`;
+    ? `<p class="bk-hint">Плей-офф ещё не начался — висит скелет. Команды и счёт подставятся автоматически, как только матчи появятся в расписании. Ставки на счёт делаешь в «Матчах», очки за плей-офф капают сюда.</p>`
+    : `<p class="bk-hint">Зелёным — кто прошёл / твой угаданный исход. <span class="bk-badge bk-badge--pick">ТЫ</span> — твой пик ждёт результата. Точный счёт ставишь в «Матчах». Чем глубже раунд — тем дороже матч, но ранние раунды берут массой матчей, так что забивать на 1/16 — себе дороже.</p>`;
 
   root.innerHTML = `
     <div class="bk-top">
       <div class="bk-legend">
-        <span><b>1/16–1/8</b> исход +1 · точный +2 · игрок +1</span>
-        <span><b>1/4–1/2</b> исход +2 · точный +3 · игрок +2</span>
-        <span><b>финал</b> исход +3 · точный +4 · игрок +3</span>
+        <span><b>1/16–1/8</b> исход +2 · точный +4 · игрок +3</span>
+        <span><b>1/4–1/2</b> исход +3 · точный +5 · игрок +4</span>
+        <span><b>финал</b> исход +4 · точный +6 · игрок +5</span>
       </div>
-      <div class="bk-mybonus">Твой бонус за сетку: <b>+${myBonus}</b></div>
+      <div class="bk-mybonus">Твои очки за плей-офф: <b>+${myBonus}</b></div>
     </div>
     ${hint}
     <div class="bracket-scroll">

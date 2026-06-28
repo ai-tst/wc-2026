@@ -7,7 +7,7 @@ import {
   calculatePointsForMatch,
   calculateOutrightsPoints,
   classifyKnockoutRound,
-  BRACKET_BONUS,
+  STAGE_POINTS,
   matchPointsFor,
 } from "../public/points.js";
 import { state } from "../public/store.js";
@@ -73,51 +73,51 @@ test("Semi-final -> SF (а не F)", () => eq(classifyKnockoutRound("Semi-final"
 test("Final -> F", () => eq(classifyKnockoutRound("Final"), "F"));
 test("групповой -> null", () => eq(classifyKnockoutRound("Group A"), null));
 
-group("Плей-офф: исход = кто прошёл (matchPointsFor) — OTS-21 + коэффициенты OTS-20");
+group("Плей-офф: исход = кто прошёл (matchPointsFor) — OTS-21/30, исход+точный суммируются");
 // status >= 8 => resolveActualResult берёт счёт из матча; home/away нужны для
 // сопоставления выбора «кто пройдёт» (advance).
 const m = (group, h, a, bp) => ({ id: 1, group, status: 8, homeScore: h, awayScore: a, home: "Дом", away: "Гости", autoBestPlayer: bp });
 // прогноз с явным выбором прохода
 const PP = (h, a, bp, adv) => ({ home: h, away: a, bestPlayer: bp, advance: adv });
 
-test("R32 проход верный, счёт мимо: база 1 + бонус (исход +1) = 2",
+test("R32 проход верный, счёт мимо: исход 2 = 2",
   () => eq(matchPointsFor(PP("1", "0", "X", "Дом"), m("Round of 32", 2, 0, "Y")).total, 2));
-test("R32 точный счёт + проход: база 3 + бонус (точный +2, заменяет исход) = 5",
-  () => eq(matchPointsFor(PP("2", "0", "X", "Дом"), m("Round of 32", 2, 0, "Y")).total, 5));
-test("R16 точный счёт + проход: база 3 + бонус (точный +2) = 5",
-  () => eq(matchPointsFor(PP("2", "0", "X", "Дом"), m("Round of 16", 2, 0, "Y")).total, 5));
-test("SF точный + игрок + проход: база 5 + бонус (точный +3, игрок +2) = 10",
-  () => eq(matchPointsFor(PP("2", "1", "Messi", "Дом"), m("Semi-final", 2, 1, "Messi")).total, 10));
-test("Финал точный счёт + проход: база 3 + бонус (точный +4) = 7",
-  () => { ok(BRACKET_BONUS.F.outcome === 3 && BRACKET_BONUS.F.exact === 4 && BRACKET_BONUS.F.player === 3);
-          eq(matchPointsFor(PP("2", "1", "X", "Дом"), m("Final", 2, 1, "Y")).total, 7); });
-test("Финал проход без точного: база 1 + бонус (исход +3) = 4",
+test("R32 точный счёт + проход: исход 2 + точный 4 = 6",
+  () => eq(matchPointsFor(PP("2", "0", "X", "Дом"), m("Round of 32", 2, 0, "Y")).total, 6));
+test("R16 точный счёт + проход: исход 2 + точный 4 = 6",
+  () => eq(matchPointsFor(PP("2", "0", "X", "Дом"), m("Round of 16", 2, 0, "Y")).total, 6));
+test("SF точный + игрок + проход: исход 3 + точный 5 + игрок 4 = 12",
+  () => eq(matchPointsFor(PP("2", "1", "Messi", "Дом"), m("Semi-final", 2, 1, "Messi")).total, 12));
+test("Финал точный счёт + проход: исход 4 + точный 6 = 10",
+  () => { ok(STAGE_POINTS.F.outcome === 4 && STAGE_POINTS.F.exact === 6 && STAGE_POINTS.F.player === 5);
+          eq(matchPointsFor(PP("2", "1", "X", "Дом"), m("Final", 2, 1, "Y")).total, 10); });
+test("Финал проход без точного: исход 4 = 4",
   () => eq(matchPointsFor(PP("3", "1", "X", "Дом"), m("Final", 2, 1, "Y")).total, 4));
-test("R32 проход + игрок (счёт мимо): база 3 + бонус (исход +1, игрок +1) = 5",
+test("R32 проход + игрок (счёт мимо): исход 2 + игрок 3 = 5",
   () => eq(matchPointsFor(PP("1", "0", "Messi", "Дом"), m("Round of 32", 2, 0, "Messi")).total, 5));
 
-group("Плей-офф: счёт и проход независимы — OTS-21");
-test("точный счёт, но проход выбран НЕверно → счёт + точный-бонус: R16 3+2=5",
-  () => eq(matchPointsFor(PP("2", "0", "X", "Гости"), m("Round of 16", 2, 0, "Y")).total, 5));
-test("проход верный, но счёт мимо → только исход: R16 база 1 + бонус (исход +1) = 2",
+group("Плей-офф: счёт и проход независимы — OTS-21/30");
+test("точный счёт, но проход выбран НЕверно → только точный: R16 4",
+  () => eq(matchPointsFor(PP("2", "0", "X", "Гости"), m("Round of 16", 2, 0, "Y")).total, 4));
+test("проход верный, но счёт мимо → только исход: R16 2",
   () => eq(matchPointsFor(PP("1", "3", "X", "Дом"), m("Round of 16", 2, 0, "Y")).total, 2));
-test("ничья 1:1 → пенальти; точный счёт + проход верный (вердикт админа): QF 3+точный(3)=6",
+test("ничья 1:1 → пенальти; точный счёт + проход верный (вердикт админа): QF 3+5=8",
   () => { state.actualMatches = { 1: { winner: "Дом" } };
-          eq(matchPointsFor(PP("1", "1", "X", "Дом"), m("Quarter-final", 1, 1, "Y")).total, 6);
+          eq(matchPointsFor(PP("1", "1", "X", "Дом"), m("Quarter-final", 1, 1, "Y")).total, 8);
           state.actualMatches = {}; });
-test("ничья 1:1 → пенальти; точный счёт, проход НЕверный: точный всё равно QF 3+3=6",
+test("ничья 1:1 → пенальти; точный счёт, проход НЕверный: только точный QF 5",
   () => { state.actualMatches = { 1: { winner: "Дом" } };
-          eq(matchPointsFor(PP("1", "1", "X", "Гости"), m("Quarter-final", 1, 1, "Y")).total, 6);
+          eq(matchPointsFor(PP("1", "1", "X", "Гости"), m("Quarter-final", 1, 1, "Y")).total, 5);
           state.actualMatches = {}; });
 test("проигранный проход и счёт мимо = 0",
   () => eq(matchPointsFor(PP("0", "3", "X", "Гости"), m("Quarter-final", 2, 0, "Y")).total, 0));
 
 group("Плей-офф: advance пустой → исход выводим из счёта (как в группе) — OTS-27");
 // m(): home="Дом" побеждает при h>a → actual winner "Дом".
-test("advance пустой, исход по счёту верный, счёт мимо → база 1 + бонус 1 = 2",
+test("advance пустой, исход по счёту верный, счёт мимо → исход 2 = 2",
   () => eq(matchPointsFor(PP("1", "0", "X", ""), m("Round of 32", 2, 0, "Y")).total, 2));
-test("advance пустой, точный счёт → база 3 + точный-бонус 2 = 5",
-  () => eq(matchPointsFor(PP("2", "0", "X", ""), m("Round of 32", 2, 0, "Y")).total, 5));
+test("advance пустой, точный счёт → исход 2 + точный 4 = 6",
+  () => eq(matchPointsFor(PP("2", "0", "X", ""), m("Round of 32", 2, 0, "Y")).total, 6));
 test("advance пустой, исход по счёту НЕверный → 0",
   () => eq(matchPointsFor(PP("0", "1", "X", ""), m("Round of 32", 2, 0, "Y")).total, 0));
 test("advance пустой, предсказана ничья → исход не выбран → 0",

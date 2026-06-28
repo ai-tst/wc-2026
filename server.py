@@ -318,7 +318,26 @@ def _players_match(a, b):
     if fb.endswith(".") and fa.startswith(fb[:-1]): return True
     return False
 
+# OTS-30: плоские таблицы очков по этапам — БЕЗ эскалирующего бонуса (его убрали,
+# слишком путал). Исход и точный счёт теперь СУММИРУЮТСЯ (раньше точный заменял
+# исход). В группе исход — по счёту; в плей-офф исход = кто прошёл дальше (с
+# пенальти), точный счёт — по осн.+доп. времени без серии пенальти.
+# Зеркало STAGE_POINTS в public/points.js (golden-тесты сверяют значения).
+_STAGE_POINTS = {
+    None:  {"outcome": 1, "exact": 2, "player": 2},  # групповой этап
+    "R32": {"outcome": 2, "exact": 4, "player": 3},  # начало плей-офф (1/16)
+    "R16": {"outcome": 2, "exact": 4, "player": 3},  # 1/8
+    "QF":  {"outcome": 3, "exact": 5, "player": 4},  # 1/4
+    "SF":  {"outcome": 3, "exact": 5, "player": 4},  # 1/2
+    "F":   {"outcome": 4, "exact": 6, "player": 5},  # финал
+}
+
+
 def _calc_match_points(pred_home, pred_away, pred_player, act_home, act_away, act_player):
+    """База ГРУППОВОГО матча: исход (по счёту) + точный счёт + игрок, СУММИРУЕМ
+    (OTS-30). Точный счёт ⇒ исход тоже верен, поэтому за угаданный точный счёт
+    выходит outcome+exact. Возвращает (total, outcome, exact, player)."""
+    pts = _STAGE_POINTS[None]
     try:
         ph, pa = int(pred_home), int(pred_away)
         ah, aa = int(act_home), int(act_away)
@@ -327,12 +346,11 @@ def _calc_match_points(pred_home, pred_away, pred_player, act_home, act_away, ac
     exact   = ph == ah and pa == aa
     outcome = (ph == pa) == (ah == aa) and (ph > pa) == (ah > aa)
     player  = _players_match(pred_player, act_player)
-    total = (3 if exact else 1 if outcome else 0) + (2 if player else 0)
+    total = (pts["outcome"] if outcome else 0) + (pts["exact"] if exact else 0) + (pts["player"] if player else 0)
     return total, outcome, exact, player
 
 
-# Зеркало public/points.js: классификация раунда плей-офф + эскалирующий бонус.
-# Держать в синхроне с BRACKET_BONUS в points.js (golden-тесты сверяют значения).
+# Зеркало public/points.js: классификация раунда плей-офф.
 def _classify_knockout(group):
     g = (group or "").lower()
     if "round of 32" in g or "1/16" in g: return "R32"
@@ -342,24 +360,9 @@ def _classify_knockout(group):
     if "final"       in g:                return "F"
     return None
 
-_BRACKET_BONUS = {
-    "R32": (1, 2, 1),
-    "R16": (1, 2, 1),
-    "QF":  (2, 3, 2),
-    "SF":  (2, 3, 2),
-    "F":   (3, 4, 3),
-}  # (исход, точный счёт, игрок)
-
-def _bracket_bonus(group, advance_ok, exact, player):
-    """Бонус сверху, как в базе: точный счёт заменяет исход, игрок отдельно."""
-    tier = _BRACKET_BONUS.get(_classify_knockout(group))
-    if not tier:
-        return 0
-    b = 0
-    if exact:        b += tier[1]   # точный счёт (заменяет исход)
-    elif advance_ok: b += tier[0]   # угадал, кто прошёл
-    if player:       b += tier[2]   # лучший игрок матча
-    return b
+def _stage_points(group):
+    """Таблица очков этапа (outcome/exact/player). Группа → _STAGE_POINTS[None]."""
+    return _STAGE_POINTS.get(_classify_knockout(group), _STAGE_POINTS[None])
 
 
 # OTS-21: в плей-офф «исход» — это КТО ПРОШЁЛ дальше (с пенальти), а не победитель
@@ -396,22 +399,22 @@ def _predicted_advance(pred_advance, pred_home, pred_away, match_home, match_awa
 def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
                           act_home, act_away, act_player, act_winner, group,
                           match_home="", match_away=""):
-    """Возвращает (base_total, advance_ok, exact, player, bonus).
-
-    base_total — очки без бонуса плей-офф (для выбора TG-сообщения 0/1/2/3/5);
-    bonus — эскалирующий бонус раунда. Полные очки = base_total + bonus.
-    """
+    """OTS-30: очки за матч по плоской таблице этапа, БЕЗ бонуса. Исход + точный
+    счёт + игрок СУММИРУЮТСЯ. В группе исход — по счёту; в плей-офф исход = кто
+    прошёл дальше (с пенальти), точный счёт — осн.+доп. без серии пенальти.
+    Возвращает (total, outcome, exact, player, pts), где pts — таблица этапа."""
     total, outcome, exact, player = _calc_match_points(
         pred_home, pred_away, pred_player, act_home, act_away, act_player)
+    pts = _stage_points(group)
     if _classify_knockout(group) is None:
-        # групповой этап — исход по счёту, как раньше
-        return total, outcome, exact, player, 0
-    advance_ok = _teams_eq(
+        # групповой этап — _calc_match_points уже посчитал по групповой таблице
+        return total, outcome, exact, player, pts
+    # плей-офф: исход = угадан ли прошедший дальше (пик advance или вывод из счёта)
+    outcome = _teams_eq(
         _predicted_advance(pred_advance, pred_home, pred_away, match_home, match_away),
         act_winner)
-    base = (3 if exact else 1 if advance_ok else 0) + (2 if player else 0)
-    bonus = _bracket_bonus(group, advance_ok, exact, player)
-    return base, advance_ok, exact, player, bonus
+    total = (pts["outcome"] if outcome else 0) + (pts["exact"] if exact else 0) + (pts["player"] if player else 0)
+    return total, outcome, exact, player, pts
 
 _RESULT_MSGS = {
     0: [
@@ -652,28 +655,28 @@ def _check_and_send_results():
                 if not pred:
                     continue  # user didn't bet on this match
 
-                total, outcome, exact, player, bonus = _playoff_match_points(
+                total, outcome, exact, player, pts = _playoff_match_points(
                     pred["home_score"], pred["away_score"], pred["best_player"], pred["advance"],
                     home_score, away_score, best, winner, group,
                     mj.get("home", ""), mj.get("away", "")
                 )
 
-                # Вайб-сообщение выбираем по базовому качеству ставки (0/1/2/3/5),
-                # а реальные очки = база + бонус плей-офф.
-                msgs = _RESULT_MSGS.get(total, _RESULT_MSGS.get(3))
+                # Вайб-сообщение выбираем по «групповому» качеству ставки (0/1/2/3/5);
+                # реальные очки в плей-офф крупнее за счёт таблицы этапа.
+                vibe = (1 if outcome else 0) + (2 if exact else 0) + (2 if player else 0)
+                msgs = _RESULT_MSGS.get(vibe, _RESULT_MSGS.get(3))
                 text = msgs[hash(uid + mid) % len(msgs)].format(match=match_name)
 
-                # Append breakdown hint for non-zero scores
+                # Append breakdown hint for non-zero scores (исход и точный счёт суммируются)
                 if total > 0:
                     is_ko = _classify_knockout(group) is not None
                     parts = []
-                    if exact:            parts.append("точный счёт +3")
-                    elif outcome:        parts.append(("проход +1" if is_ko else "исход +1"))
-                    if player:           parts.append("лучший игрок +2")
-                    if bonus:            parts.append(f"бонус плей-офф +{bonus}")
+                    if outcome:          parts.append((f"проход +{pts['outcome']}" if is_ko else f"исход +{pts['outcome']}"))
+                    if exact:            parts.append(f"точный счёт +{pts['exact']}")
+                    if player:           parts.append(f"лучший игрок +{pts['player']}")
                     text += f"\n<i>({', '.join(parts)})</i>"
-                    if bonus:
-                        text += f"\n<b>Итого за матч: +{total + bonus}</b>"
+                    if total != vibe:    # плей-офф — реальный тотал крупнее вайба
+                        text += f"\n<b>Итого за матч: +{total}</b>"
 
                 _tg_send(user["telegram_chat_id"], text)
                 db.execute(
@@ -681,7 +684,7 @@ def _check_and_send_results():
                     [mid, uid]
                 )
                 db.commit()
-                print(f"[tg] result sent to user {uid[:8]} for match {mid}: {total + bonus}pts")
+                print(f"[tg] result sent to user {uid[:8]} for match {mid}: {total}pts")
 
         db.close()
     except Exception as e:

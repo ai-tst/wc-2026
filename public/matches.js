@@ -515,12 +515,12 @@ export function createMatchRow(match, isActual) {
     if (phase === "ended") {
       const pred   = currentUser.matches?.[match.id];
       const actual = resolveActualResult(match);
-      const { total, outcomeCorrect, exactScore, bestPlayerCorrect, bonus } = matchPointsFor(pred, match);
+      const { total, outcomeCorrect, exactScore, bestPlayerCorrect } = matchPointsFor(pred, match);
+      const isKo = Boolean(classifyKnockoutRound(match.group));
       const hints = [];
       if (exactScore)        hints.push("точный счёт");
-      else if (outcomeCorrect) hints.push("исход");
+      if (outcomeCorrect && (isKo || !exactScore)) hints.push(isKo ? "проход" : "исход");
       if (bestPlayerCorrect)  hints.push("игрок");
-      if (bonus > 0)          hints.push(`плей-офф +${bonus}`);
 
       const badge = document.createElement("div");
       badge.className = `match-points-badge ${total > 0 ? "match-points-badge--positive" : ""}`;
@@ -942,8 +942,9 @@ export async function renderPlayerProfile(nickname, containerEl) {
 function createResultCard(match, ratings = {}, viewUser = null) {
   const pred   = (viewUser ?? currentUser)?.matches?.[match.id];
   const actual = resolveActualResult(match);
-  const { total, outcomeCorrect, exactScore, bestPlayerCorrect, bonus } =
+  const { total, outcomeCorrect, exactScore, bestPlayerCorrect } =
     matchPointsFor(pred, match);
+  const isKo = Boolean(classifyKnockoutRound(match.group));
 
   const leagueLine = [match.league, match.group].filter(Boolean).join(" · ");
 
@@ -954,9 +955,8 @@ function createResultCard(match, ratings = {}, viewUser = null) {
 
   const hints = [];
   if (exactScore)          hints.push("точный счёт");
-  else if (outcomeCorrect) hints.push("исход");
+  if (outcomeCorrect && (isKo || !exactScore)) hints.push(isKo ? "проход" : "исход");
   if (bestPlayerCorrect)   hints.push("игрок");
-  if (bonus > 0)           hints.push(`плей-офф +${bonus}`);
 
   const actualBestRaw = actual?.bestPlayer || match.autoBestPlayer || "";
   const actualBestList = Array.isArray(actualBestRaw) ? actualBestRaw : (actualBestRaw ? [actualBestRaw] : []);
