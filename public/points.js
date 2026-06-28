@@ -154,3 +154,13 @@ export function getUserTotalPoints(user) {
   total += user.bonusPoints || 0;
   return total;
 }
+
+// Только очки за матчи плей-офф (база + бонус за раунд). Ауткрайты и групповой этап не учитываются.
+export function getUserPlayoffPoints(user) {
+  let total = 0;
+  for (const match of activeMatches) {
+    if (!classifyKnockoutRound(match.group)) continue;
+    total += matchPointsFor(user.matches?.[match.id], match).total;
+  }
+  return total;
+}

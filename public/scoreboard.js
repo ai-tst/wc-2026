@@ -1,16 +1,18 @@
 import { state, currentUser } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
-import { getUserTotalPoints } from "./points.js";
+import { getUserTotalPoints, getUserPlayoffPoints } from "./points.js";
 
-export function renderScoreboard() {
-  const tbody = $("scoreboard-body");
-  tbody.innerHTML = "";
-
-  const rows = state.users
+function buildRows(users, getPoints) {
+  return users
     .filter((u) => u.onboardingComplete)
-    .map((u) => ({ nickname: u.nickname, total: getUserTotalPoints(u) }))
+    .map((u) => ({ nickname: u.nickname, total: getPoints(u) }))
     .sort((a, b) => b.total - a.total);
+}
 
+function renderTable(tbodyId, rows) {
+  const tbody = $(tbodyId);
+  if (!tbody) return;
+  tbody.innerHTML = "";
   rows.forEach((row, idx) => {
     const tr = document.createElement("tr");
     if (row.nickname === currentUser?.nickname) tr.classList.add("scoreboard-row--me");
@@ -20,4 +22,14 @@ export function renderScoreboard() {
       <td>${row.total}</td>`;
     tbody.appendChild(tr);
   });
+}
+
+export function renderScoreboard() {
+  const users = state.users;
+
+  // Playoff table (main)
+  renderTable("scoreboard-playoff-body", buildRows(users, getUserPlayoffPoints));
+
+  // Full table (group + all)
+  renderTable("scoreboard-body", buildRows(users, getUserTotalPoints));
 }

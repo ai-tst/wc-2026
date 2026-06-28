@@ -298,8 +298,8 @@ function setupResultsToggle() {
 function setupPlayerProfile() {
   $("profile-back-btn")?.addEventListener("click", () => showView("view-main"));
 
-  // Event delegation — scoreboard nickname buttons
-  $("scoreboard-body")?.addEventListener("click", async (e) => {
+  // Event delegation — scoreboard nickname buttons (playoff + group tables)
+  async function handleScoreboardClick(e) {
     const btn = e.target.closest("[data-player-nick]");
     if (!btn) return;
     const nick = btn.dataset.playerNick;
@@ -308,5 +308,7 @@ function setupPlayerProfile() {
     container.innerHTML = `<p class="muted small">Загружаю...</p>`;
     showView("view-player-profile");
     await renderPlayerProfile(nick, container);
-  });
+  }
+  $("scoreboard-playoff-body")?.addEventListener("click", handleScoreboardClick);
+  $("scoreboard-body")?.addEventListener("click", handleScoreboardClick);
 }

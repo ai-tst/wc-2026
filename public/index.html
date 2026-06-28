@@ -159,13 +159,24 @@
               <div id="matches-list" class="matches-list"></div>
             </section>
             <section class="card">
-              <h2>Турнирная таблица</h2>
+              <h2>Плей-офф 🏆</h2>
+              <p class="muted small">Только матчи плей-офф. У всех старт с нуля&nbsp;— без груза групп.</p>
               <div class="scoreboard-table-wrapper">
                 <table class="scoreboard-table">
                   <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
-                  <tbody id="scoreboard-body"></tbody>
+                  <tbody id="scoreboard-playoff-body"></tbody>
                 </table>
               </div>
+
+              <details class="scoreboard-group-details">
+                <summary class="scoreboard-group-summary">Групповой этап (итог)</summary>
+                <div class="scoreboard-table-wrapper">
+                  <table class="scoreboard-table">
+                    <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
+                    <tbody id="scoreboard-body"></tbody>
+                  </table>
+                </div>
+              </details>
             </section>
           </div>
 

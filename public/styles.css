@@ -1518,6 +1518,36 @@ body.design-v2 .scoreboard-table tbody tr:first-child {
 }
 body.design-v2 .scoreboard-row--me td { color: var(--gold); font-weight: 700; }
 
+/* Collapsible group-stage table inside the scoreboard card */
+body.design-v2 .scoreboard-group-details {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+body.design-v2 .scoreboard-group-summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+body.design-v2 .scoreboard-group-summary::-webkit-details-marker { display: none; }
+body.design-v2 .scoreboard-group-summary::before {
+  content: "▶";
+  font-size: 10px;
+  transition: transform .2s;
+}
+body.design-v2 .scoreboard-group-details[open] .scoreboard-group-summary::before {
+  transform: rotate(90deg);
+}
+body.design-v2 .scoreboard-group-details .scoreboard-table-wrapper {
+  margin-top: 10px;
+}
+
 /* Persistent "bet saved" indicator (v2 only) */
 body.design-v2 .bet-saved-note {
   width: 100%;
