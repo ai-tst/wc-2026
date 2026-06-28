@@ -1,6 +1,6 @@
 import { state, currentUser, activeMatches } from "./store.js";
 import { escapeHtml } from "./utils.js";
-import { calculatePointsForMatch, resolveActualResult } from "./points.js";
+import { calculatePointsForMatch, resolveActualResult, getUserTotalPoints } from "./points.js";
 
 // Collapsible stats block (v2). Tabs: "Гонка" (interactive cumulative line chart)
 // and "Точность" (hit-rate table + your points distribution).
@@ -72,7 +72,12 @@ function raceView(users, ended, actuals) {
       byDay[d].forEach((m) => { dp += calculatePointsForMatch(u.matches?.[m.id], actuals[m.id]).total; });
       cum += dp; pts.push(cum);
     });
-    return { nick: u.nickname, pts, total: cum, isMe: u.nickname === currentUser?.nickname };
+    // Очки, не привязанные к матчам в графике (ручные баллы + ауткрайты + бонус сетки),
+    // чтобы итог Гонки сходился с «итоговой таблицей» (getUserTotalPoints). Раскидываем
+    // ровным сдвигом по всей линии — у нас нет даты, к которой их привязать.
+    const extra = getUserTotalPoints(u) - cum;
+    const adj = pts.map((p) => p + extra);
+    return { nick: u.nickname, pts: adj, total: cum + extra, isMe: u.nickname === currentUser?.nickname };
   });
 
   const ranked = [...series].sort((a, b) => b.total - a.total);
@@ -244,11 +249,9 @@ function attachRaceHover(host) {
 // палитру по этому порядку, себе — золотой (тот же маппинг, что дефолт Гонки).
 function streakColors(users, ended, actuals) {
   const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#fb923c", "#4ade80", "#f87171", "#22d3ee"];
-  const ranked = users.map((u) => {
-    let t = 0;
-    ended.forEach((m) => { t += calculatePointsForMatch(u.matches?.[m.id], actuals[m.id]).total; });
-    return { nick: u.nickname, total: t, isMe: u.nickname === currentUser?.nickname };
-  }).sort((a, b) => b.total - a.total);
+  const ranked = users.map((u) => (
+    { nick: u.nickname, total: getUserTotalPoints(u), isMe: u.nickname === currentUser?.nickname }
+  )).sort((a, b) => b.total - a.total);
   const byNick = {};
   let ci = 0;
   ranked.forEach((s) => { byNick[s.nick] = s.isMe ? "#ffd23f" : palette[(ci++) % palette.length]; });
