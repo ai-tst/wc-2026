@@ -2056,16 +2056,45 @@ body.design-v2 .results-actions { display: none; }
 /* ── Playoff bracket ──────────────────────────────────────────────────────── */
 .bracket-btn { font-weight: 700; }
 
-/* ── Ссылка на ТГ-бота, оформлена как secondary-btn (в одном ряду с шапкой) ── */
-.tg-bot-btn {
+/* ── ТГ-бот: плавающая кнопка снизу-справа (FAB), не лезет в шапку ─────────── */
+.tg-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: 1px solid var(--accent-strong);
+  box-shadow: var(--shadow-soft);
+  color: #022c22;
+  text-decoration: none;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    filter var(--transition-fast);
+}
+.tg-fab:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
   text-decoration: none;
 }
-.tg-bot-btn:hover { text-decoration: none; }
-.tg-bot-btn .tg-icon { line-height: 1; }
+.tg-fab__icon {
+  width: 26px;
+  height: 26px;
+  fill: #022c22;
+  display: block;
+}
+/* В режиме казика не мозолим глаз — там свой вайб */
+body.casino-mode .tg-fab { display: none; }
+@media (max-width: 480px) {
+  .tg-fab { right: 14px; bottom: 14px; width: 48px; height: 48px; }
+  .tg-fab__icon { width: 24px; height: 24px; }
+}
 
 /* ── «Предложить улучшение» link styled as a button ───────────────────────── */
 .feature-request-btn {
