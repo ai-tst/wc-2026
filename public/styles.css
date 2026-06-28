@@ -1518,6 +1518,24 @@ body.design-v2 .scoreboard-table tbody tr:first-child {
 }
 body.design-v2 .scoreboard-row--me td { color: var(--gold); font-weight: 700; }
 
+/* Playoff-board card — main leaderboard in focus */
+body.design-v2 .card--playoff-board { margin-bottom: 0; }
+body.design-v2 .playoff-board__title { margin: 0 0 4px; }
+
+/* Empty-state while playoff hasn't started */
+body.design-v2 .playoff-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+body.design-v2 .playoff-empty__emoji { font-size: 36px; line-height: 1; }
+body.design-v2 .playoff-empty__text  { margin: 0; font-size: 14px; max-width: 380px; }
+body.design-v2 .playoff-empty.hidden { display: none; }
+
 /* Collapsible group-stage table inside the scoreboard card */
 body.design-v2 .scoreboard-group-details {
   margin-top: 20px;
