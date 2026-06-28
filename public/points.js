@@ -155,12 +155,26 @@ export function calculateBracketBonus(user) {
 // the escalating playoff bonus for knockout rounds. `total` already includes the
 // bonus, so result cards/badges that read `.total` show the full earned points.
 //
-// OTS-21: в плей-офф «исход» — это отдельное предсказание «кто пройдёт дальше»
-// (pred.advance), а НЕ победитель по счёту. Точный счёт по-прежнему считается без
-// серии пенальти. Эти два вопроса независимы: можно угадать счёт и промахнуться в
-// проходе (ничья → пенальти) и наоборот.
+// OTS-21/OTS-27: в плей-офф «исход» — это «кто пройдёт дальше». Берём явный пик
+// pred.advance, а если его нет — выводим из предсказанного счёта (как в группе),
+// чтобы игрок, заполнивший только счёт, получал очко за угаданный исход. Точный
+// счёт по-прежнему считается без серии пенальти.
 function teamsEq(a, b) {
   return Boolean(a) && Boolean(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+// OTS-27: кого игрок назначил победителем плей-офф-матча. Источник истины — явный
+// пик «кто пройдёт» (pred.advance); если его нет — выводим из предсказанного счёта
+// (решающий счёт → победившая команда), ровно как исход в групповом этапе. Так
+// игрок, заполнивший только счёт, не теряет очко за угаданный исход.
+function predictedAdvance(pred, match) {
+  if (pred?.advance) return pred.advance;
+  if (!pred || pred.home === "" || pred.away === "") return "";
+  const h = Number(pred.home), a = Number(pred.away);
+  if (Number.isNaN(h) || Number.isNaN(a)) return "";
+  if (h > a) return match.home;
+  if (a > h) return match.away;
+  return ""; // предсказана ничья — победитель не выбран
 }
 
 export function matchPointsFor(pred, match) {
@@ -171,8 +185,8 @@ export function matchPointsFor(pred, match) {
     // групповой этап — исход по счёту, как раньше
     return { ...base, bonus: 0, total: base.total };
   }
-  // плей-офф: исход = угадан ли прошедший дальше
-  const advanceCorrect = teamsEq(pred?.advance, actual?.winner);
+  // плей-офф: исход = угадан ли прошедший дальше (пик advance или вывод из счёта)
+  const advanceCorrect = teamsEq(predictedAdvance(pred, match), actual?.winner);
   const exact  = base.exactScore;
   const player = base.bestPlayerCorrect;
   const baseTotal = (exact ? 3 : advanceCorrect ? 1 : 0) + (player ? 2 : 0);

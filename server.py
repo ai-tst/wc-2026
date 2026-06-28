@@ -379,8 +379,23 @@ def _playoff_winner_from_score(home, away, act_home, act_away):
     return ""  # ничья → нужен явный winner (кто прошёл по пенальти)
 
 
+def _predicted_advance(pred_advance, pred_home, pred_away, match_home, match_away):
+    """OTS-27: кого игрок назначил победителем плей-офф-матча. Явный пик advance,
+    иначе выводим из предсказанного счёта (как исход в группе)."""
+    if pred_advance:
+        return pred_advance
+    try:
+        ph, pa = int(pred_home), int(pred_away)
+    except (TypeError, ValueError):
+        return ""
+    if ph > pa: return match_home
+    if pa > ph: return match_away
+    return ""  # предсказана ничья — победитель не выбран
+
+
 def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
-                          act_home, act_away, act_player, act_winner, group):
+                          act_home, act_away, act_player, act_winner, group,
+                          match_home="", match_away=""):
     """Возвращает (base_total, advance_ok, exact, player, bonus).
 
     base_total — очки без бонуса плей-офф (для выбора TG-сообщения 0/1/2/3/5);
@@ -391,7 +406,9 @@ def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
     if _classify_knockout(group) is None:
         # групповой этап — исход по счёту, как раньше
         return total, outcome, exact, player, 0
-    advance_ok = _teams_eq(pred_advance, act_winner)
+    advance_ok = _teams_eq(
+        _predicted_advance(pred_advance, pred_home, pred_away, match_home, match_away),
+        act_winner)
     base = (3 if exact else 1 if advance_ok else 0) + (2 if player else 0)
     bonus = _bracket_bonus(group, advance_ok, exact, player)
     return base, advance_ok, exact, player, bonus
@@ -637,7 +654,8 @@ def _check_and_send_results():
 
                 total, outcome, exact, player, bonus = _playoff_match_points(
                     pred["home_score"], pred["away_score"], pred["best_player"], pred["advance"],
-                    home_score, away_score, best, winner, group
+                    home_score, away_score, best, winner, group,
+                    mj.get("home", ""), mj.get("away", "")
                 )
 
                 # Вайб-сообщение выбираем по базовому качеству ставки (0/1/2/3/5),
