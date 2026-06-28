@@ -1908,6 +1908,9 @@ body.design-v2 .card--stats { display: block; }
   padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
 }
 .stats-tab--on { background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color: #022c22; border-color: transparent; }
+/* race sub-toggle: line vs histogram (compact pills under the Гонка tab) */
+.stats-tabs--sub { gap: 6px; margin: 2px 0 6px; }
+.stats-tab--sm { padding: 4px 12px; font-size: 12px; }
 
 /* race legend (toggle players) */
 .stats-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
