@@ -2564,10 +2564,6 @@ body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on .team-name { color: var(--accent)
 }
 body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--pulse { animation: v2mcSidePulse 0.45s ease-in-out 3; }
 
-/* Под счётом в плей-офф — только компактная подпись-правило. */
-body.design-v2 .v2mc-playoff { margin: 8px auto 0; max-width: 480px; }
-body.design-v2 .v2mc-po-note { font-size: 11px; color: var(--muted); text-align: center; }
-
 /* Админ-ввод факта плей-офф (кто прошёл + была ли серия пенальти) */
 .actual-playoff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .actual-winner-select {

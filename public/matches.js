@@ -540,10 +540,10 @@ export function createMatchRow(match, isActual) {
 
 // OTS-21: ввод плей-офф. «Кто пройдёт дальше» выбирается прямо в шапке — сами
 // команды на уровне со счётом становятся кнопками (флаг + название), выбранная
-// подсвечивается акцентом. Отдельного блока кнопок нет — не усложняем это место
-// (прямой фидбэк Тимы). Тумблер пенальти убран: серия пенальти выводится из счёта
-// (ничья в осн.+доп. → будет, иначе нет), penalties деривим при сохранении.
-// Под счётом остаётся только компактная подпись-правило. Групповой этап → null.
+// подсвечивается акцентом. Никаких отдельных блоков/подписей под счётом — не
+// усложняем это место (прямой фидбэк Тимы). Тумблер пенальти убран: серия пенальти
+// выводится из счёта (ничья в осн.+доп. → будет, иначе нет), penalties деривим при
+// сохранении. Групповой этап → null.
 function buildPlayoffControls(match, prediction, editable, teamEls) {
   if (!classifyKnockoutRound(match.group)) return null;
 
@@ -570,15 +570,8 @@ function buildPlayoffControls(match, prediction, editable, teamEls) {
   });
   paint();
 
-  const wrap = document.createElement("div");
-  wrap.className = "v2mc-playoff";
-  const scoreNote = document.createElement("div");
-  scoreNote.className = "v2mc-po-note";
-  scoreNote.textContent = "Счёт — основное + доп. время. Ничья = будет серия пенальти";
-  wrap.append(scoreNote);
-
   return {
-    el: wrap,
+    el: null, // под счётом ничего не рисуем — выбор живёт в самих командах
     setAdvance: (team) => { advance = team; paint(); },
     getAdvance: () => advance,
     pulse: () => {
@@ -648,10 +641,10 @@ function createMatchRowV2(match) {
   controls.appendChild(playerInput);
 
   // OTS-21: в плей-офф сами команды в шапке = кнопки выбора проходящего; под
-  // счётом — только компактная подпись-правило.
+  // счётом ничего не добавляем.
   const teamSpans = hero.querySelectorAll(".v2rc-t");
   const playoff = buildPlayoffControls(match, prediction, editable, { home: teamSpans[0], away: teamSpans[1] });
-  if (playoff) hero.querySelector(".v2rc-scoreline").insertAdjacentElement("afterend", playoff.el);
+  if (playoff?.el) hero.querySelector(".v2rc-scoreline").insertAdjacentElement("afterend", playoff.el);
 
   homeInput.value   = prediction?.home ?? "";
   awayInput.value   = prediction?.away ?? "";
