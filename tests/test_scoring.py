@@ -19,6 +19,8 @@ from _harness import suite, eq, ok, main  # noqa: E402
 calc = server._calc_match_points
 pmatch = server._players_match
 norm = server._norm_player
+classify = server._classify_knockout
+bonus = server._bracket_bonus
 
 
 # _calc_match_points возвращает (total, outcome, exact, player)
@@ -62,5 +64,27 @@ nrm.case("тримит пробелы", lambda: eq(norm("  Messi  "), "messi"))
 nrm.case("пустое -> ''", lambda: eq(norm(None), ""))
 
 
+# классификация раунда плей-офф (зеркало classifyKnockoutRound в points.js)
+ko = suite("Раунды плей-офф (_classify_knockout)")
+ko.case("Round of 32 -> R32", lambda: eq(classify("Round of 32"), "R32"))
+ko.case("Round of 16 -> R16", lambda: eq(classify("Round of 16"), "R16"))
+ko.case("Quarter-final -> QF", lambda: eq(classify("Quarter-final"), "QF"))
+ko.case("Semi-final -> SF (а не F)", lambda: eq(classify("Semi-final"), "SF"))
+ko.case("Final -> F", lambda: eq(classify("Final"), "F"))
+ko.case("групповой -> None", lambda: eq(classify("Group A"), None))
+
+# честный бонус плей-офф (golden — синхронен с BRACKET_BONUS в points.js, OTS-20)
+brk = suite("Бонус плей-офф (_bracket_bonus)")
+brk.case("групповой -> 0", lambda: eq(bonus("Group A", True, True), 0))
+brk.case("R32 исход -> 1", lambda: eq(bonus("Round of 32", True, False), 1))
+brk.case("R32 точный -> только исход 1 (точный +0)", lambda: eq(bonus("Round of 32", True, True), 1))
+brk.case("R16 точный -> исход 1 + точный 1 = 2", lambda: eq(bonus("Round of 16", True, True), 2))
+brk.case("QF точный -> 2 + 1 = 3", lambda: eq(bonus("Quarter-final", True, True), 3))
+brk.case("SF точный -> 4 + 2 = 6", lambda: eq(bonus("Semi-final", True, True), 6))
+brk.case("Финал точный -> 8 + 4 = 12", lambda: eq(bonus("Final", True, True), 12))
+brk.case("Финал исход без точного -> 8", lambda: eq(bonus("Final", True, False), 8))
+brk.case("исход не угадан -> 0", lambda: eq(bonus("Final", False, False), 0))
+
+
 if __name__ == "__main__":
-    main(points, edge, players, nrm)
+    main(points, edge, players, nrm, ko, brk)

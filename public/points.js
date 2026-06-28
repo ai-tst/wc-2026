@@ -110,13 +110,18 @@ export function classifyKnockoutRound(group) {
 
 // Escalating bracket bonus, ADDED on top of normal match points (исход +1 /
 // точный +3 / игрок +2 still apply to playoff matches). Deeper round = more.
-// The Final/champion stays as the existing "winner" outright (+8), so F earns no
-// bracket bonus here — no double counting.
+//
+// Схема честных коэффициентов плей-офф (решение CEO, OTS-20): бонус начисляется
+// отдельно за угаданный ИСХОД и за ТОЧНЫЙ СЧЁТ, оба растут к финалу. Матчей с
+// каждым раундом вдвое меньше, а вес раунда — соизмеримый: 1/16 в сумме самый
+// тяжёлый раунд (16 матчей × 1), поэтому скилл решает уже на старте, а не только
+// рандом в 1/4–финале. Игрок матча остаётся плоским базовым +2, без эскалации.
 export const BRACKET_BONUS = {
-  R32: { outcome: 1, player: 0 },
-  R16: { outcome: 2, player: 1 },
-  QF:  { outcome: 4, player: 1 },
-  SF:  { outcome: 8, player: 2 },
+  R32: { outcome: 1, exact: 0 },
+  R16: { outcome: 1, exact: 1 },
+  QF:  { outcome: 2, exact: 1 },
+  SF:  { outcome: 4, exact: 2 },
+  F:   { outcome: 8, exact: 4 },
 };
 
 export function calculateBracketBonus(user) {
@@ -136,8 +141,8 @@ export function matchPointsFor(pred, match) {
   const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
   let bonus = 0;
   if (tier) {
-    if (base.outcomeCorrect)    bonus += tier.outcome;
-    if (base.bestPlayerCorrect) bonus += tier.player;
+    if (base.outcomeCorrect) bonus += tier.outcome;  // угадал, кто прошёл
+    if (base.exactScore)     bonus += tier.exact;    // ещё и точный счёт
   }
   return { ...base, bonus, total: base.total + bonus };
 }

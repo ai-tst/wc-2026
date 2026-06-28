@@ -321,6 +321,35 @@ def _calc_match_points(pred_home, pred_away, pred_player, act_home, act_away, ac
     total = (3 if exact else 1 if outcome else 0) + (2 if player else 0)
     return total, outcome, exact, player
 
+
+# Зеркало public/points.js: классификация раунда плей-офф + эскалирующий бонус.
+# Держать в синхроне с BRACKET_BONUS в points.js (golden-тесты сверяют значения).
+def _classify_knockout(group):
+    g = (group or "").lower()
+    if "round of 32" in g or "1/16" in g: return "R32"
+    if "round of 16" in g or "1/8"  in g: return "R16"
+    if "quarter"     in g or "1/4"  in g: return "QF"
+    if "semi"        in g or "1/2"  in g: return "SF"
+    if "final"       in g:                return "F"
+    return None
+
+_BRACKET_BONUS = {
+    "R32": (1, 0),
+    "R16": (1, 1),
+    "QF":  (2, 1),
+    "SF":  (4, 2),
+    "F":   (8, 4),
+}  # (исход, точный счёт)
+
+def _bracket_bonus(group, outcome, exact):
+    tier = _BRACKET_BONUS.get(_classify_knockout(group))
+    if not tier:
+        return 0
+    b = 0
+    if outcome: b += tier[0]
+    if exact:   b += tier[1]
+    return b
+
 _RESULT_MSGS = {
     0: [
         "Твоя ставка не зашла на НБА. За матч <b>{match}</b> ты получаешь великие 0 очков 💀",
@@ -558,7 +587,10 @@ def _check_and_send_results():
                     pred["home_score"], pred["away_score"], pred["best_player"],
                     home_score, away_score, best
                 )
+                bonus = _bracket_bonus(mj.get("group"), outcome, exact)
 
+                # Вайб-сообщение выбираем по базовому качеству ставки (0/1/2/3/5),
+                # а реальные очки = база + бонус плей-офф.
                 msgs = _RESULT_MSGS.get(total, _RESULT_MSGS.get(3))
                 text = msgs[hash(uid + mid) % len(msgs)].format(match=match_name)
 
@@ -568,7 +600,10 @@ def _check_and_send_results():
                     if exact:            parts.append("точный счёт +3")
                     elif outcome:        parts.append("исход +1")
                     if player:           parts.append("лучший игрок +2")
+                    if bonus:            parts.append(f"бонус плей-офф +{bonus}")
                     text += f"\n<i>({', '.join(parts)})</i>"
+                    if bonus:
+                        text += f"\n<b>Итого за матч: +{total + bonus}</b>"
 
                 _tg_send(user["telegram_chat_id"], text)
                 db.execute(
@@ -576,7 +611,7 @@ def _check_and_send_results():
                     [mid, uid]
                 )
                 db.commit()
-                print(f"[tg] result sent to user {uid[:8]} for match {mid}: {total}pts")
+                print(f"[tg] result sent to user {uid[:8]} for match {mid}: {total + bonus}pts")
 
         db.close()
     except Exception as e:

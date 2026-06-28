@@ -83,6 +83,45 @@ let _actualBPGetter      = () => "";
 let _actualTSGetter      = () => "";
 
 // ── Render user's own outrights display ──────────────────────────────────────
+// Понятное пояснение по коэффициентам — рядом с долгосрочными ставками (OTS-20).
+// Один источник правды по очкам: лонгтерм + база за матч + честный бонус плей-офф.
+function rulesNoteHtml() {
+  return `
+    <details class="rules-note">
+      <summary class="rules-note__sum">ℹ️ Как начисляются очки</summary>
+      <div class="rules-note__body">
+        <div class="rules-note__group">
+          <span class="rules-note__title">Долгосрочные (ставишь один раз, до старта)</span>
+          <ul>
+            <li>Чемпион ЧМ — <b>+8</b></li>
+            <li>Лучший игрок турнира — <b>+8</b></li>
+            <li>Лучший бомбардир — <b>+5</b></li>
+            <li>Уёбищные команды — <b>+3</b> за каждую угаданную (3 шт., макс +9)</li>
+          </ul>
+        </div>
+        <div class="rules-note__group">
+          <span class="rules-note__title">За каждый матч</span>
+          <ul>
+            <li>Угадал исход — <b>+1</b></li>
+            <li>Точный счёт — <b>+3</b></li>
+            <li>Лучший игрок матча — <b>+2</b></li>
+          </ul>
+        </div>
+        <div class="rules-note__group">
+          <span class="rules-note__title">Плей-офф — бонус сверху, чем глубже, тем жирнее</span>
+          <ul>
+            <li>1/16 — исход <b>+1</b></li>
+            <li>1/8 — исход <b>+1</b> · точный <b>+1</b></li>
+            <li>1/4 — исход <b>+2</b> · точный <b>+1</b></li>
+            <li>1/2 — исход <b>+4</b> · точный <b>+2</b></li>
+            <li>Финал — исход <b>+8</b> · точный <b>+4</b></li>
+          </ul>
+          <p class="rules-note__why">Ранние раунды берут массой матчей (1/16 — это 16 игр), так что скилл решает уже на старте, а не только рандом в финале. К концу ставки жирнее — один точный тык в финал не перевернёт таблицу, но накал максимальный.</p>
+        </div>
+      </div>
+    </details>`;
+}
+
 export function renderOutrightsSection() {
   const o       = currentUser.outrights || emptyOutrights();
   const display = $("outrights-display");
@@ -117,6 +156,9 @@ export function renderOutrightsSection() {
       <div class="outrights-item"><span class="label">Уёбищные команды</span><span class="value">${escapeHtml(dhText)}</span></div>
     `;
   }
+
+  const rules = $("outrights-rules");
+  if (rules) rules.innerHTML = isV2() ? rulesNoteHtml() : "";
 
   if (canEditOutrights()) {
     hint.textContent = `Можно изменить до ${formatDeadline()} включительно.`;

@@ -72,15 +72,24 @@ test("Semi-final -> SF (а не F)", () => eq(classifyKnockoutRound("Semi-final"
 test("Final -> F", () => eq(classifyKnockoutRound("Final"), "F"));
 test("групповой -> null", () => eq(classifyKnockoutRound("Group A"), null));
 
-group("Бонус за раунд (matchPointsFor) — на ended-матчах");
+group("Бонус за раунд (matchPointsFor) — честные коэффициенты OTS-20");
 // status >= 8 => resolveActualResult берёт счёт из самого матча
 const m = (group, h, a, bp) => ({ id: 1, group, status: 8, homeScore: h, awayScore: a, autoBestPlayer: bp });
-test("R16 исход верный: база 1 + бонус 2 = 3",
-  () => eq(matchPointsFor(P("1", "0", "X"), m("Round of 16", 2, 0, "Y")).total, 3));
-test("SF точный счёт + игрок: база 5 + бонус (8 исход +2 игрок) = 15",
-  () => eq(matchPointsFor(P("2", "1", "Messi"), m("Semi-final", 2, 1, "Messi")).total, 15));
-test("Final без бонуса (чемпион считается отдельным ауткрайтом)",
-  () => { ok(BRACKET_BONUS.F === undefined); eq(matchPointsFor(P("2", "1", "X"), m("Final", 2, 1, "Y")).total, 3); });
+test("R32 исход верный: база 1 + бонус (исход +1) = 2",
+  () => eq(matchPointsFor(P("1", "0", "X"), m("Round of 32", 2, 0, "Y")).total, 2));
+test("R32 точный счёт: бонус за точный = 0, база 3 + бонус (исход +1) = 4",
+  () => eq(matchPointsFor(P("2", "0", "X"), m("Round of 32", 2, 0, "Y")).total, 4));
+test("R16 исход верный: база 1 + бонус (исход +1) = 2",
+  () => eq(matchPointsFor(P("1", "0", "X"), m("Round of 16", 2, 0, "Y")).total, 2));
+test("R16 точный счёт: база 3 + бонус (исход +1, точный +1) = 5",
+  () => eq(matchPointsFor(P("2", "0", "X"), m("Round of 16", 2, 0, "Y")).total, 5));
+test("SF точный счёт + игрок: база 5 + бонус (исход +4, точный +2) = 11",
+  () => eq(matchPointsFor(P("2", "1", "Messi"), m("Semi-final", 2, 1, "Messi")).total, 11));
+test("Финал точный счёт: база 3 + бонус (исход +8, точный +4) = 15",
+  () => { ok(BRACKET_BONUS.F.outcome === 8 && BRACKET_BONUS.F.exact === 4);
+          eq(matchPointsFor(P("2", "1", "X"), m("Final", 2, 1, "Y")).total, 15); });
+test("Финал исход без точного: база 1 + бонус (исход +8) = 9",
+  () => eq(matchPointsFor(P("3", "1", "X"), m("Final", 2, 1, "Y")).total, 9));
 test("проигранный исход в плей-офф = 0 бонуса",
   () => eq(matchPointsFor(P("0", "3", "X"), m("Quarter-final", 2, 0, "Y")).total, 0));
 

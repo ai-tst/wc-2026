@@ -81,7 +81,11 @@ function bkMatch(match) {
     if (ended && aw) {
       const ptsObj = calculatePointsForMatch(pred, actual);
       const ok = ptsObj.outcomeCorrect;
-      const gained = ok && tier ? tier.outcome : 0;
+      let gained = 0;
+      if (ok && tier) {
+        gained += tier.outcome;
+        if (ptsObj.exactScore) gained += tier.exact;
+      }
       badge = ok
         ? `<span class="bk-badge bk-badge--ok">✓${gained ? " +" + gained : ""}</span>`
         : `<span class="bk-badge bk-badge--no">✗</span>`;
@@ -120,9 +124,8 @@ export function renderBracket() {
     const all  = matchesForRound(c.key);
     const cells = slice(all, c.side, c.n);
     const padded = Array.from({ length: c.n }, (_, i) => cells[i] || null);
-    const bonusChip = c.key === "F"
-      ? `<span class="bk-bonus bk-bonus--champ">чемпион → лонгтерм</span>`
-      : `<span class="bk-bonus">исход +${BRACKET_BONUS[c.key].outcome}${BRACKET_BONUS[c.key].player ? " · игрок +" + BRACKET_BONUS[c.key].player : ""}</span>`;
+    const t = BRACKET_BONUS[c.key];
+    const bonusChip = `<span class="bk-bonus${c.key === "F" ? " bk-bonus--champ" : ""}">исход +${t.outcome}${t.exact ? " · точный +" + t.exact : ""}</span>`;
     // header only on the first time we show a round label per side (keep all for clarity)
     return `<div class="bk-col bk-col--${c.key.toLowerCase()} bk-col--${c.side.toLowerCase()}">
       <div class="bk-col-head">
@@ -137,15 +140,16 @@ export function renderBracket() {
 
   const hint = koCount === 0
     ? `<p class="bk-hint">Плей-офф ещё не начался — висит скелет. Команды и счёт подставятся автоматически, как только матчи появятся в расписании. Ставки на счёт делаешь в «Матчах», бонус за глубину капает сюда.</p>`
-    : `<p class="bk-hint">Зелёным — кто прошёл / твой угаданный исход. <span class="bk-badge bk-badge--pick">ТЫ</span> — твой пик ждёт результата. Точный счёт ставишь в «Матчах».</p>`;
+    : `<p class="bk-hint">Зелёным — кто прошёл / твой угаданный исход. <span class="bk-badge bk-badge--pick">ТЫ</span> — твой пик ждёт результата. Точный счёт ставишь в «Матчах». Чем глубже раунд — тем жирнее бонус, но ранние раунды берут массой матчей, так что забивать на 1/16 — себе дороже.</p>`;
 
   root.innerHTML = `
     <div class="bk-top">
       <div class="bk-legend">
         <span><b>1/16</b> исход +1</span>
-        <span><b>1/8</b> +2 · игрок +1</span>
-        <span><b>1/4</b> +4 · игрок +1</span>
-        <span><b>1/2</b> +8 · игрок +2</span>
+        <span><b>1/8</b> +1 · точный +1</span>
+        <span><b>1/4</b> +2 · точный +1</span>
+        <span><b>1/2</b> +4 · точный +2</span>
+        <span><b>финал</b> +8 · точный +4</span>
       </div>
       <div class="bk-mybonus">Твой бонус за сетку: <b>+${myBonus}</b></div>
     </div>

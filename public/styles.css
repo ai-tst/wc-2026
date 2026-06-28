@@ -1836,6 +1836,35 @@ body.design-v2 #all-outrights-section { display: none; }
 .outrights-others-sum::before { content: "▶ "; font-size: 10px; }
 details[open] > .outrights-others-sum::before { content: "▼ "; }
 
+/* v2: «Как начисляются очки» — пояснение по коэффициентам у долгосрочных ставок */
+#outrights-rules { display: none; }
+body.design-v2 #outrights-rules { display: block; margin-top: 12px; }
+.rules-note {
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-soft); padding: 4px 12px;
+}
+.rules-note__sum {
+  cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted);
+  list-style: none; padding: 8px 0;
+}
+.rules-note__sum::-webkit-details-marker { display: none; }
+.rules-note__sum::before { content: "▶ "; font-size: 10px; }
+details[open] > .rules-note__sum::before { content: "▼ "; }
+.rules-note__body {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 22px; padding: 4px 0 12px;
+}
+.rules-note__title {
+  display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); font-weight: 700; margin-bottom: 6px;
+}
+.rules-note__group ul { margin: 0; padding-left: 18px; }
+.rules-note__group li { font-size: 13px; color: var(--text); line-height: 1.55; }
+.rules-note__group li b { color: var(--accent); }
+.rules-note__why {
+  margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5;
+}
+
 /* v2: your outrights as one compact line (with a flag on the champion pick) */
 body.design-v2 .outrights-display { display: block; }
 .outrights-compact { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
