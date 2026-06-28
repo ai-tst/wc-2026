@@ -26,11 +26,15 @@ export function renderStats() {
   const actuals = {};
   ended.forEach((m) => { actuals[m.id] = resolveActualResult(m); });
 
-  const tabs = [["race", "🏁 Гонка"], ["acc", "🎯 Точность"]];
+  const tabs = [["race", "🏁 Гонка"], ["streaks", "🔥 Стрики"], ["acc", "🎯 Точность"]];
   const tabsHtml = `<div class="stats-tabs">${tabs.map(([k, l]) =>
     `<button type="button" class="stats-tab ${_statsView === k ? "stats-tab--on" : ""}" data-view="${k}">${l}</button>`).join("")}</div>`;
 
-  host.innerHTML = tabsHtml + (_statsView === "acc" ? accuracyView(users, ended, actuals) : raceView(users, ended, actuals));
+  let body;
+  if (_statsView === "acc") body = accuracyView(users, ended, actuals);
+  else if (_statsView === "streaks") body = streaksView(users, ended, actuals);
+  else body = raceView(users, ended, actuals);
+  host.innerHTML = tabsHtml + body;
 
   host.querySelectorAll(".stats-tab").forEach((btn) =>
     btn.addEventListener("click", () => { _statsView = btn.dataset.view; renderStats(); }));
@@ -183,6 +187,125 @@ function attachRaceHover(host) {
   svg.addEventListener("mouseleave", hide);
   svg.addEventListener("touchstart", (e) => { if (e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
   svg.addEventListener("touchmove",  (e) => { if (e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+}
+
+// ── Стрики: текущие и рекордные серии угаданных/слитых ставок ──────────────────
+// Стабильные цвета игроков «как в Гонке»: ранжируем по сумме очков, раздаём
+// палитру по этому порядку, себе — золотой (тот же маппинг, что дефолт Гонки).
+function streakColors(users, ended, actuals) {
+  const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#fb923c", "#4ade80", "#f87171", "#22d3ee"];
+  const ranked = users.map((u) => {
+    let t = 0;
+    ended.forEach((m) => { t += calculatePointsForMatch(u.matches?.[m.id], actuals[m.id]).total; });
+    return { nick: u.nickname, total: t, isMe: u.nickname === currentUser?.nickname };
+  }).sort((a, b) => b.total - a.total);
+  const byNick = {};
+  let ci = 0;
+  ranked.forEach((s) => { byNick[s.nick] = s.isMe ? "#ffd23f" : palette[(ci++) % palette.length]; });
+  return byNick;
+}
+
+// Подколы по длине серии — чем длиннее, тем громче вайб.
+function hotCaption(n) {
+  if (n >= 6) return "красный поясок, всё горит 🔥🔥🔥";
+  if (n >= 4) return "на кураже, не остановить";
+  if (n >= 2) return "разогрелся, идёт волна";
+  return "только зажёгся";
+}
+function coldCaption(n) {
+  if (n >= 6) return "лютый даунстрик, пора удалять акк 💀";
+  if (n >= 4) return "ловит холодрыгу, занесите плед 🧊";
+  if (n >= 2) return "что-то приуныл, мажет подряд";
+  return "лёгкий холодок ❄️";
+}
+
+function streaksView(users, ended, actuals) {
+  // Хронологический порядок матчей (как в брекете): по дате, затем по id.
+  const order = [...ended].sort((a, b) =>
+    String(a.dateTimeRaw || "").localeCompare(String(b.dateTimeRaw || "")) ||
+    String(a.id).localeCompare(String(b.id)));
+  const colorByNick = streakColors(users, ended, actuals);
+
+  const rows = users.map((u) => {
+    let run = 0, runHit = null, recWin = 0, recLose = 0, settled = 0;
+    order.forEach((m) => {
+      const pred = u.matches?.[m.id];
+      if (!pred || pred.home === "" || pred.home == null) return; // только реальные ставки
+      const hit = calculatePointsForMatch(pred, actuals[m.id]).outcomeCorrect; // угадал исход
+      settled++;
+      if (runHit === hit) run++; else { run = 1; runHit = hit; }
+      if (hit && run > recWin) recWin = run;
+      if (!hit && run > recLose) recLose = run;
+    });
+    // текущая серия = хвостовой ран; направление = runHit (true — вин, false — луз)
+    return {
+      nick: u.nickname, isMe: u.nickname === currentUser?.nickname,
+      color: colorByNick[u.nickname], settled,
+      cur: settled ? run : 0, curHit: settled ? runHit : null, recWin, recLose,
+    };
+  });
+
+  // Сортировка-нарратив: самые горячие сверху, самые холодные снизу.
+  const heat = (r) => (r.curHit === true ? r.cur : r.curHit === false ? -r.cur : 0);
+  rows.sort((a, b) => heat(b) - heat(a) || b.recWin - a.recWin || a.nick.localeCompare(b.nick));
+
+  const hotCands = rows.filter((r) => r.curHit === true && r.cur >= 1)
+    .sort((a, b) => b.cur - a.cur || b.recWin - a.recWin || a.nick.localeCompare(b.nick));
+  const coldCands = rows.filter((r) => r.curHit === false && r.cur >= 2)
+    .sort((a, b) => b.cur - a.cur || b.recLose - a.recLose || a.nick.localeCompare(b.nick));
+  const hot = hotCands[0] || null;
+  const cold = coldCands[0] || null;
+
+  const dot = (c) => `<span class="sr-dot" style="background:${c}"></span>`;
+  const hotHero = hot
+    ? `<div class="streak-hero streak-hero--hot">
+        <div class="sh-emoji">🔥</div>
+        <div class="sh-body">
+          <div class="sh-label">Горящий игрок</div>
+          <div class="sh-nick">${dot(hot.color)}${escapeHtml(hot.nick)}</div>
+          <div class="sh-big">${hot.cur} побед подряд</div>
+          <div class="sh-cap">${hotCaption(hot.cur)}</div>
+        </div>
+      </div>`
+    : `<div class="streak-hero streak-hero--hot streak-hero--empty">
+        <div class="sh-emoji">🥶</div>
+        <div class="sh-body"><div class="sh-label">Горящий игрок</div>
+          <div class="sh-cap">Пока никто не разогрелся — все мажут.</div></div>
+      </div>`;
+  const coldHero = cold
+    ? `<div class="streak-hero streak-hero--cold">
+        <div class="sh-emoji">${cold.cur >= 5 ? "💀" : "🧊"}</div>
+        <div class="sh-body">
+          <div class="sh-label">Холодный игрок</div>
+          <div class="sh-nick">${dot(cold.color)}${escapeHtml(cold.nick)}</div>
+          <div class="sh-big">${cold.cur} мимо подряд</div>
+          <div class="sh-cap">${coldCaption(cold.cur)}</div>
+        </div>
+      </div>`
+    : `<div class="streak-hero streak-hero--cold streak-hero--empty">
+        <div class="sh-emoji">😎</div>
+        <div class="sh-body"><div class="sh-label">Холодный игрок</div>
+          <div class="sh-cap">Лютых даунстриков нет — красавчики.</div></div>
+      </div>`;
+
+  const list = rows.map((r) => {
+    let cur;
+    if (r.curHit === true) cur = `<span class="sr-cur sr-cur--hot">🔥 ${r.cur}</span>`;
+    else if (r.curHit === false) cur = `<span class="sr-cur sr-cur--cold">🧊 ${r.cur}</span>`;
+    else cur = `<span class="sr-cur sr-cur--none">—</span>`;
+    const rec = r.recWin > 0
+      ? `<span class="sr-rec" title="Лучшая серия побед за всё время">🏆 ${r.recWin}</span>`
+      : `<span class="sr-rec sr-rec--zero">🏆 0</span>`;
+    return `<div class="streak-row ${r.isMe ? "streak-row--me" : ""}">
+        <span class="sr-who">${dot(r.color)}<span class="sr-nick">${escapeHtml(r.nick)}</span></span>
+        ${cur}${rec}
+      </div>`;
+  }).join("");
+
+  return `<div class="stats-title">Стрики <span class="muted small">(серии угаданных исходов подряд · кто на кураже, а кто сливает)</span></div>
+    <div class="streak-heroes">${hotHero}${coldHero}</div>
+    <div class="streak-list-head"><span>Чел</span><span>Сейчас</span><span>Рекорд</span></div>
+    <div class="streak-list">${list}</div>`;
 }
 
 // ── Точность: hit-rate table + your points distribution ───────────────────────

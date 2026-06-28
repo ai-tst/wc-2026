@@ -1949,6 +1949,59 @@ body.design-v2 .acc-table .acc-me td { color: var(--gold); }
 .dist-2 .dist-num, .dist-1 .dist-num { color: #a9a3d4; }
 .dist-0 { border-color: rgba(255, 138, 155, 0.4); } .dist-0 .dist-num { color: #ff8a9b; }
 
+/* ── Стрики: hero-карточки горящего/холодного + список серий ──────────────── */
+.streak-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 14px; }
+@media (max-width: 560px) { .streak-heroes { grid-template-columns: 1fr; } }
+.streak-hero {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(168, 163, 212, 0.18);
+  border-radius: var(--radius-lg); padding: 14px 16px; min-height: 92px;
+}
+.streak-hero--hot {
+  border-color: rgba(251, 146, 60, 0.55);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.16), rgba(255, 210, 63, 0.06));
+}
+.streak-hero--cold {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(167, 139, 250, 0.05));
+}
+.streak-hero--empty { opacity: 0.75; }
+.sh-emoji { font-size: 38px; line-height: 1; flex-shrink: 0; }
+.sh-body { min-width: 0; }
+.sh-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.sh-nick { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 17px; margin-top: 2px; }
+.streak-hero--hot .sh-big { color: #fb923c; }
+.streak-hero--cold .sh-big { color: #38bdf8; }
+.sh-big { font-family: "Russo One", var(--font-main); font-size: 18px; margin-top: 2px; }
+.sh-cap { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+.streak-list-head, .streak-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+  padding: 8px 12px;
+}
+.streak-list-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+  padding-bottom: 4px;
+}
+.streak-list { display: flex; flex-direction: column; gap: 6px; }
+.streak-row {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(168, 163, 212, 0.18);
+  border-radius: 12px;
+}
+body.design-v2 .streak-row--me { border-color: rgba(255, 210, 63, 0.5); }
+body.design-v2 .streak-row--me .sr-nick { color: var(--gold); }
+.sr-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sr-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sr-nick { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-cur, .sr-rec {
+  font-weight: 800; font-size: 14px; white-space: nowrap; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sr-cur--hot { color: #fb923c; }
+.sr-cur--cold { color: #38bdf8; }
+.sr-cur--none, .sr-rec--zero { color: var(--muted); font-weight: 600; }
+.sr-rec { color: var(--gold); min-width: 44px; }
+
 /* v2: drop the "Пересчитать" / collapse buttons in Результаты (not needed for players) */
 body.design-v2 .results-actions { display: none; }
 
