@@ -540,9 +540,10 @@ export function createMatchRow(match, isActual) {
 
 // OTS-21: ввод плей-офф. «Кто пройдёт дальше» — две зелёные кнопки-команды
 // (флаг + название, подсветка акцентом при выборе) сразу под счётом, на уровне
-// с командами. Ниже — компактная подпись + тумблер «Пенальти» (сохраняем, баллы
-// пока не начисляем). Точный счёт (без пенальти) остаётся цифрами в hero.
-// Групповой этап → null. Кнопки вернул по прямому фидбэку Тимы.
+// с командами. Тумблер пенальти убран: серия пенальти однозначно выводится из
+// счёта (ничья в осн.+доп. → будет, иначе нет), поэтому отдельный ввод не нужен —
+// penalties деривим из счёта при сохранении. Точный счёт остаётся цифрами в hero.
+// Групповой этап → null.
 function buildPlayoffControls(match, prediction, editable) {
   if (!classifyKnockoutRound(match.group)) return null;
 
@@ -574,28 +575,9 @@ function buildPlayoffControls(match, prediction, editable) {
 
   const scoreNote = document.createElement("div");
   scoreNote.className = "v2mc-po-note";
-  scoreNote.textContent = "Счёт — основное + доп. время, без пенальти";
+  scoreNote.textContent = "Счёт — основное + доп. время. Ничья = будет серия пенальти";
 
-  const penWrap = document.createElement("label");
-  penWrap.className = "v2mc-pen-toggle";
-  const penLabel = document.createElement("span");
-  penLabel.className = "v2mc-pen-label";
-  penLabel.textContent = "Пенальти";
-  const penBox = document.createElement("input");
-  penBox.type = "checkbox";
-  penBox.className = "v2mc-pen-box";
-  penBox.checked = prediction?.penalties === "yes";
-  penBox.disabled = !editable;
-  const penSwitch = document.createElement("span");
-  penSwitch.className = "v2mc-pen-switch";
-  const penState = document.createElement("span");
-  penState.className = "v2mc-pen-state";
-  const syncPen = () => { penState.textContent = penBox.checked ? "будет" : "не будет"; };
-  syncPen();
-  penBox.addEventListener("change", syncPen);
-  penWrap.append(penLabel, penBox, penSwitch, penState);
-
-  wrap.append(advLabel, advRow, scoreNote, penWrap);
+  wrap.append(advLabel, advRow, scoreNote);
   return {
     el: wrap,
     setAdvance: (team) => {
@@ -603,7 +585,6 @@ function buildPlayoffControls(match, prediction, editable) {
       btns.forEach((x, i) => x.classList.toggle("v2mc-adv-btn--on", teams[i] === team));
     },
     getAdvance: () => advance,
-    getPenalties: () => (penBox.checked ? "yes" : ""),
     pulse: () => {
       btns.forEach((b) => {
         b.classList.remove("v2mc-adv-btn--pulse");
@@ -681,7 +662,11 @@ function createMatchRowV2(match) {
 
   const readData = () => {
     const d = { home: homeInput.value.trim(), away: awayInput.value.trim(), bestPlayer: playerInput.value.trim() };
-    if (playoff) { d.advance = playoff.getAdvance(); d.penalties = playoff.getPenalties(); }
+    if (playoff) {
+      d.advance = playoff.getAdvance();
+      // Пенальти деривим из счёта: ничья в осн.+доп. ⇒ серия пенальти.
+      d.penalties = (d.home !== "" && d.away !== "" && Number(d.home) === Number(d.away)) ? "yes" : "no";
+    }
     return d;
   };
 
