@@ -2540,32 +2540,53 @@ body.casino-mode .casino-eq canvas {
 
 /* ── OTS-21: плей-офф — раздельные предсказания (исход / счёт / игрок / пенальти) ── */
 /* Блок появляется только на карточках матчей плей-офф, под полем «лучший игрок». */
+/* OTS-21 плей-офф: тап по команде в шапке = выбор проходящего. */
+body.design-v2 .v2mc-team-pick { cursor: pointer; border-radius: var(--radius-md); transition: var(--transition-fast); }
+body.design-v2 .v2mc-team-pick:hover .team-name { color: var(--accent); }
+body.design-v2 .v2mc-team-pick--on .team-name {
+  color: var(--accent);
+  text-shadow: 0 0 12px var(--accent-soft);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 1px;
+}
+@keyframes v2mcTeamPulse {
+  0%, 100% { color: var(--text); }
+  50% { color: var(--accent); text-shadow: 0 0 14px var(--accent-soft); }
+}
+body.design-v2 .v2mc-team-pulse .team-name { animation: v2mcTeamPulse 0.45s ease-in-out 3; }
+
+/* Блок под счётом: подпись + тумблер «Пенальти». */
 body.design-v2 .v2mc-playoff {
-  display: flex; flex-direction: column; gap: 9px;
-  padding-top: 10px; margin-top: 2px;
-  border-top: 1px dashed var(--border);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  margin: 8px auto 0; max-width: 480px;
 }
-body.design-v2 .v2mc-po-note { font-size: 11px; color: var(--muted); }
-body.design-v2 .v2mc-po-label { font-size: 12px; font-weight: 700; color: var(--text); }
-body.design-v2 .v2mc-advance { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-body.design-v2 .v2mc-adv-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 40px; padding: 8px 10px;
-  border: 1px solid var(--border); border-radius: var(--radius-md);
-  background: transparent; color: var(--text);
-  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: var(--transition-fast);
+body.design-v2 .v2mc-po-note { font-size: 11px; color: var(--muted); text-align: center; }
+body.design-v2 .v2mc-pen-toggle {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 12px; color: var(--muted); cursor: pointer; user-select: none;
 }
-body.design-v2 .v2mc-adv-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-body.design-v2 .v2mc-adv-btn--on {
-  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+body.design-v2 .v2mc-pen-label { font-weight: 700; color: var(--text); }
+body.design-v2 .v2mc-pen-box { position: absolute; opacity: 0; width: 0; height: 0; }
+body.design-v2 .v2mc-pen-switch {
+  position: relative; flex: none; width: 38px; height: 22px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-softer); transition: var(--transition-fast);
 }
-body.design-v2 .v2mc-adv-btn:disabled { opacity: 0.55; cursor: default; }
-body.design-v2 .v2mc-penalties {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--muted); cursor: pointer;
+body.design-v2 .v2mc-pen-switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--muted); transition: var(--transition-fast);
 }
-body.design-v2 .v2mc-penalties .v2mc-pen-box { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+body.design-v2 .v2mc-pen-box:checked + .v2mc-pen-switch {
+  background: var(--accent-soft); border-color: var(--accent);
+}
+body.design-v2 .v2mc-pen-box:checked + .v2mc-pen-switch::after {
+  transform: translateX(16px); background: var(--accent);
+}
+body.design-v2 .v2mc-pen-box:focus-visible + .v2mc-pen-switch { box-shadow: 0 0 0 2px var(--accent-soft); }
+body.design-v2 .v2mc-pen-box:disabled ~ * ,
+body.design-v2 .v2mc-pen-box:disabled + .v2mc-pen-switch { opacity: 0.55; }
+body.design-v2 .v2mc-pen-state { min-width: 56px; font-weight: 600; }
 
 /* Админ-ввод факта плей-офф (кто прошёл + была ли серия пенальти) */
 .actual-playoff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
