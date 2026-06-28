@@ -538,45 +538,43 @@ export function createMatchRow(match, isActual) {
   return row;
 }
 
-// OTS-21: ввод плей-офф без отдельного блока кнопок. «Кто пройдёт дальше»
-// выбирается тапом по самой команде в шапке (teamEls), а под счётом живёт
-// компактная подпись + тумблер «Пенальти» (сохраняем, баллы пока не начисляем).
-// Точный счёт (без пенальти) остаётся цифрами в hero. Групповой этап → null.
-function buildPlayoffControls(match, prediction, editable, teamEls) {
+// OTS-21: ввод плей-офф. «Кто пройдёт дальше» — две зелёные кнопки-команды
+// (флаг + название, подсветка акцентом при выборе) сразу под счётом, на уровне
+// с командами. Ниже — компактная подпись + тумблер «Пенальти» (сохраняем, баллы
+// пока не начисляем). Точный счёт (без пенальти) остаётся цифрами в hero.
+// Групповой этап → null. Кнопки вернул по прямому фидбэку Тимы.
+function buildPlayoffControls(match, prediction, editable) {
   if (!classifyKnockoutRound(match.group)) return null;
 
   let advance = prediction?.advance || "";
   const teams = [match.home, match.away];
-  const els = [teamEls.home, teamEls.away];
 
-  const paintTeams = () => {
-    els.forEach((el, i) => {
-      el.classList.toggle("v2mc-team-pick--on", advance === teams[i]);
-    });
-  };
-
-  els.forEach((el, i) => {
-    if (editable) {
-      el.classList.add("v2mc-team-pick");
-      el.setAttribute("title", "Тапни — выбрать, кто пройдёт дальше");
-      el.setAttribute("role", "button");
-      el.setAttribute("tabindex", "0");
-      const pick = () => { advance = teams[i]; paintTeams(); };
-      el.addEventListener("click", pick);
-      el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
-      });
-    }
-  });
-  paintTeams();
-
-  // Блок под счётом: компактная подпись + тумблер «Пенальти».
   const wrap = document.createElement("div");
   wrap.className = "v2mc-playoff";
 
+  const advLabel = document.createElement("div");
+  advLabel.className = "v2mc-po-label";
+  advLabel.textContent = "Кто пройдёт дальше";
+
+  const advRow = document.createElement("div");
+  advRow.className = "v2mc-advance";
+  const btns = teams.map((team) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "v2mc-adv-btn" + (advance === team ? " v2mc-adv-btn--on" : "");
+    b.innerHTML = withFlag(team);
+    b.disabled = !editable;
+    b.addEventListener("click", () => {
+      advance = team;
+      btns.forEach((x, i) => x.classList.toggle("v2mc-adv-btn--on", teams[i] === team));
+    });
+    return b;
+  });
+  advRow.append(...btns);
+
   const scoreNote = document.createElement("div");
   scoreNote.className = "v2mc-po-note";
-  scoreNote.textContent = "Основное + доп. время, без пенальти";
+  scoreNote.textContent = "Счёт — основное + доп. время, без пенальти";
 
   const penWrap = document.createElement("label");
   penWrap.className = "v2mc-pen-toggle";
@@ -597,18 +595,21 @@ function buildPlayoffControls(match, prediction, editable, teamEls) {
   penBox.addEventListener("change", syncPen);
   penWrap.append(penLabel, penBox, penSwitch, penState);
 
-  wrap.append(scoreNote, penWrap);
+  wrap.append(advLabel, advRow, scoreNote, penWrap);
   return {
     el: wrap,
-    setAdvance: (team) => { advance = team; paintTeams(); },
+    setAdvance: (team) => {
+      advance = team;
+      btns.forEach((x, i) => x.classList.toggle("v2mc-adv-btn--on", teams[i] === team));
+    },
     getAdvance: () => advance,
     getPenalties: () => (penBox.checked ? "yes" : ""),
     pulse: () => {
-      els.forEach((el) => {
-        el.classList.remove("v2mc-team-pulse");
-        void el.offsetWidth; // reflow → перезапуск анимации
-        el.classList.add("v2mc-team-pulse");
-        setTimeout(() => el.classList.remove("v2mc-team-pulse"), 1400);
+      btns.forEach((b) => {
+        b.classList.remove("v2mc-adv-btn--pulse");
+        void b.offsetWidth; // reflow → перезапуск анимации
+        b.classList.add("v2mc-adv-btn--pulse");
+        setTimeout(() => b.classList.remove("v2mc-adv-btn--pulse"), 1400);
       });
     },
   };
@@ -669,10 +670,8 @@ function createMatchRowV2(match) {
   playerInput.placeholder = "Лучший игрок матча";
   controls.appendChild(playerInput);
 
-  // OTS-21: в плей-офф проходящий = тап по команде в шапке, а под счётом —
-  // компактная подпись + тумблер «Пенальти».
-  const teamSpans = hero.querySelectorAll(".v2rc-t");
-  const playoff = buildPlayoffControls(match, prediction, editable, { home: teamSpans[0], away: teamSpans[1] });
+  // OTS-21: в плей-офф под счётом — кнопки «кто пройдёт дальше» + тумблер пенальти.
+  const playoff = buildPlayoffControls(match, prediction, editable);
   if (playoff) hero.querySelector(".v2rc-scoreline").insertAdjacentElement("afterend", playoff.el);
 
   homeInput.value   = prediction?.home ?? "";
