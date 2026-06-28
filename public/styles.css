@@ -2540,32 +2540,32 @@ body.casino-mode .casino-eq canvas {
 
 /* ── OTS-21: плей-офф — раздельные предсказания (исход / счёт / игрок / пенальти) ── */
 /* Блок появляется только на карточках матчей плей-офф, под полем «лучший игрок». */
-/* OTS-21 плей-офф: «кто пройдёт дальше» — две кнопки-команды под счётом,
-   подпись про счёт + тумблер «Пенальти». */
-body.design-v2 .v2mc-playoff {
-  display: flex; flex-direction: column; align-items: stretch; gap: 9px;
-  margin: 10px auto 0; max-width: 480px;
-}
-body.design-v2 .v2mc-po-label { font-size: 12px; font-weight: 700; color: var(--text); text-align: center; }
-body.design-v2 .v2mc-advance { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-body.design-v2 .v2mc-adv-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 40px; padding: 8px 10px;
+/* OTS-21 плей-офф: «кто пройдёт дальше» выбирается прямо в шапке — сами команды
+   на уровне со счётом становятся кнопками. Выбранная подсвечена акцентом. */
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn {
+  justify-content: center;
+  padding: 7px 8px; min-height: 38px;
   border: 1px solid var(--border); border-radius: var(--radius-md);
-  background: transparent; color: var(--text);
-  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: transparent; cursor: pointer;
   transition: var(--transition-fast);
 }
-body.design-v2 .v2mc-adv-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-body.design-v2 .v2mc-adv-btn--on {
-  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn:hover { border-color: var(--accent); }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn:hover .team-name { color: var(--accent); }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on {
+  justify-content: center;
+  padding: 7px 8px; min-height: 38px;
+  border: 1px solid var(--accent); border-radius: var(--radius-md);
+  background: var(--accent-soft);
 }
-body.design-v2 .v2mc-adv-btn:disabled { opacity: 0.55; cursor: default; }
-@keyframes v2mcAdvPulse {
-  0%, 100% { border-color: var(--border); }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on .team-name { color: var(--accent); }
+@keyframes v2mcSidePulse {
+  0%, 100% { border-color: var(--border); box-shadow: none; }
   50% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 }
-body.design-v2 .v2mc-adv-btn--pulse { animation: v2mcAdvPulse 0.45s ease-in-out 3; }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--pulse { animation: v2mcSidePulse 0.45s ease-in-out 3; }
+
+/* Под счётом в плей-офф — только компактная подпись-правило. */
+body.design-v2 .v2mc-playoff { margin: 8px auto 0; max-width: 480px; }
 body.design-v2 .v2mc-po-note { font-size: 11px; color: var(--muted); text-align: center; }
 
 /* Админ-ввод факта плей-офф (кто прошёл + была ли серия пенальти) */
