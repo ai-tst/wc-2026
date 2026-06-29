@@ -2184,8 +2184,6 @@ body.bracket-open .app { max-width: 1700px; }
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
   gap: 10px; margin-bottom: 8px;
 }
-.bk-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
-.bk-legend b { color: var(--text); }
 .bk-mybonus {
   font-size: 14px; padding: 6px 14px; border-radius: 999px;
   background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); color: #7CFFB2;
@@ -2233,6 +2231,7 @@ body.bracket-open .app { max-width: 1700px; }
 .bk-team .team-flag { width: 20px; height: 14px; flex-shrink: 0; }
 .bk-score { margin-left: auto; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bk-q { color: var(--muted); opacity: 0.6; font-weight: 700; }
+.bk-slot { color: var(--muted); opacity: 0.75; font-weight: 700; font-size: 11px; letter-spacing: 0.03em; }
 
 /* GREEN = advanced / your correct outcome */
 .bk-team--win { color: #7CFFB2; }
