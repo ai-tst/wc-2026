@@ -172,7 +172,7 @@ function teamsEq(a, b) {
 // пик «кто пройдёт» (pred.advance); если его нет — выводим из предсказанного счёта
 // (решающий счёт → победившая команда), ровно как исход в групповом этапе. Так
 // игрок, заполнивший только счёт, не теряет очко за угаданный исход.
-function predictedAdvance(pred, match) {
+export function predictedAdvance(pred, match) {
   if (pred?.advance) return pred.advance;
   if (!pred || pred.home === "" || pred.away === "") return "";
   const h = Number(pred.home), a = Number(pred.away);

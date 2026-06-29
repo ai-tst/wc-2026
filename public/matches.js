@@ -2,7 +2,7 @@ import { state, currentUser, activeMatches } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
-import { calculatePointsForMatch, resolveActualResult, matchPointsFor, classifyKnockoutRound } from "./points.js";
+import { calculatePointsForMatch, resolveActualResult, matchPointsFor, classifyKnockoutRound, predictedAdvance } from "./points.js";
 import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api-client.js";
 import { runScoreSlot } from "./casino.js";
 import { openShareCard } from "./share-card.js";
@@ -1059,7 +1059,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     </div>`;
 
   const labelRow = row("v2rc-row--label",
-    "", isPlayoff ? `<span class="v2rc-outcome">исход</span>` : "",
+    "", isPlayoff ? `<span class="v2rc-outcome"></span>` : "",
     "счёт", "<span>лучший игрок</span>", `<span class="v2rc-vibe"></span>`, "<span>очки</span>");
 
   // My bet
@@ -1069,7 +1069,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const myPlayer = pred?.bestPlayer ? escapeHtml(pred.bestPlayer) + ratingTag(ratings, pred.bestPlayer) : "—";
   const myInfo = matchPointsFor(pred, match);
   const myPts = myInfo.total;
-  const myRow = row("v2rc-row--mine", "ТЫ", outcomeCell(pred?.advance), myScore, myPlayer,
+  const myRow = row("v2rc-row--mine", "ТЫ", outcomeCell(predictedAdvance(pred, match)), myScore, myPlayer,
     vibeCell(myPts, match.id + (me?.nickname || "")),
     `<span class="${myPts > 0 ? "v2rc-pos" : ""}">${fmtPts(myPts)}</span>`);
 
@@ -1080,7 +1080,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     .filter((x) => x.p && (x.p.home !== "" || x.p.away !== ""))
     .map((x) => ({
       nick: x.u.nickname,
-      advance: x.p.advance,
+      advance: predictedAdvance(x.p, match),
       score: `${x.p.home ?? "—"}:${x.p.away ?? "—"}`,
       player: x.p.bestPlayer ? escapeHtml(x.p.bestPlayer) + ratingTag(ratings, x.p.bestPlayer) : "—",
       pts: matchPointsFor(x.p, match).total,
