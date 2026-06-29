@@ -2558,6 +2558,12 @@ body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on {
   background: var(--accent-soft);
 }
 body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on .team-name { color: var(--accent); }
+/* OTS-33: решающий счёт лочит проход на победителя — кнопки не интерактивны */
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked { cursor: default; }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked:hover { border-color: var(--border); }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked:hover .team-name { color: inherit; }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked.v2mc-side-btn--on:hover { border-color: var(--accent); }
+body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked.v2mc-side-btn--on:hover .team-name { color: var(--accent); }
 @keyframes v2mcSidePulse {
   0%, 100% { border-color: var(--border); box-shadow: none; }
   50% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }

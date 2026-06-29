@@ -548,11 +548,34 @@ function buildPlayoffControls(match, prediction, editable, teamEls) {
   if (!classifyKnockoutRound(match.group)) return null;
 
   let advance = prediction?.advance || "";
+  let locked = false; // OTS-33: при решающем счёте проход залочен на победителя
   const teams = [match.home, match.away];
   const els = [teamEls.home, teamEls.away];
 
   const paint = () => {
-    els.forEach((el, i) => el.classList.toggle("v2mc-side-btn--on", advance === teams[i]));
+    els.forEach((el, i) => {
+      el.classList.toggle("v2mc-side-btn--on", advance === teams[i]);
+      el.classList.toggle("v2mc-side-btn--locked", editable && locked);
+      if (editable) el.title = locked
+        ? "Проходит победитель по счёту"
+        : "Выбрать, кто пройдёт по пенальти";
+    });
+  };
+
+  // OTS-33 анти-чит: «кто пройдёт» обязан совпадать со счётом. Решающий счёт →
+  // авто-выставляем победителя и лочим выбор (нельзя «счёт за A / проход за B»).
+  // Ничья (осн.+доп.) → серия пенальти, выбор прохода свободный и обязательный.
+  const decisiveWinner = (h, a) => {
+    if (h === "" || a === "") return null;
+    const nh = Number(h), na = Number(a);
+    if (!Number.isFinite(nh) || !Number.isFinite(na) || nh === na) return null;
+    return nh > na ? teams[0] : teams[1];
+  };
+  const syncWithScore = (h, a) => {
+    const winner = decisiveWinner(h, a);
+    locked = winner !== null;
+    if (locked) advance = winner; // решающий счёт диктует прохождение
+    paint();
   };
 
   els.forEach((el, i) => {
@@ -560,8 +583,8 @@ function buildPlayoffControls(match, prediction, editable, teamEls) {
       el.classList.add("v2mc-side-btn");
       el.setAttribute("role", "button");
       el.setAttribute("tabindex", "0");
-      el.setAttribute("title", "Выбрать, кто пройдёт дальше");
-      const pick = () => { advance = teams[i]; paint(); };
+      el.setAttribute("title", "Выбрать, кто пройдёт по пенальти");
+      const pick = () => { if (locked) return; advance = teams[i]; paint(); };
       el.addEventListener("click", pick);
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
@@ -574,6 +597,7 @@ function buildPlayoffControls(match, prediction, editable, teamEls) {
     el: null, // под счётом ничего не рисуем — выбор живёт в самих командах
     setAdvance: (team) => { advance = team; paint(); },
     getAdvance: () => advance,
+    syncWithScore,
     pulse: () => {
       els.forEach((el) => {
         el.classList.remove("v2mc-side-btn--pulse");
@@ -650,6 +674,8 @@ function createMatchRowV2(match) {
   awayInput.value   = prediction?.away ?? "";
   playerInput.value = prediction?.bestPlayer ?? "";
   homeInput.disabled = awayInput.disabled = playerInput.disabled = !editable;
+  // OTS-33: согласуем «кто пройдёт» с уже сохранённым счётом (лочим при решающем).
+  playoff?.syncWithScore(homeInput.value, awayInput.value);
 
   const readData = () => {
     const d = { home: homeInput.value.trim(), away: awayInput.value.trim(), bestPlayer: playerInput.value.trim() };
@@ -665,6 +691,8 @@ function createMatchRowV2(match) {
     let getPlayers = () => null;
     [homeInput, awayInput].forEach((inp) => inp.addEventListener("input", () => {
       if (inp.value.length > 2) inp.value = inp.value.slice(0, 2);
+      // OTS-33: счёт меняется → пересинхронизируем/лочим выбор прохода.
+      playoff?.syncWithScore(homeInput.value, awayInput.value);
     }));
 
     const hasPrediction = prediction?.home !== undefined && prediction?.home !== "";
@@ -733,10 +761,11 @@ function createMatchRowV2(match) {
         awayInput.value = res.away;
         if (res.player) playerInput.value = res.player; // игрок тоже выпал на слоте
         if (playoff) {
-          // наугад: прошедший = победитель по выпавшему счёту, на ничьей — монетка
-          const h = Number(res.home), a = Number(res.away);
-          const pick = h > a ? match.home : a > h ? match.away : (Math.random() < 0.5 ? match.home : match.away);
-          playoff.setAdvance(pick);
+          // наугад: решающий счёт сам залочит победителя; на ничьей — монетка
+          playoff.syncWithScore(res.home, res.away);
+          if (Number(res.home) === Number(res.away)) {
+            playoff.setAdvance(Math.random() < 0.5 ? match.home : match.away);
+          }
         }
         await saveBet();
       } finally {

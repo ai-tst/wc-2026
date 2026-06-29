@@ -396,6 +396,28 @@ def _predicted_advance(pred_advance, pred_home, pred_away, match_home, match_awa
     return ""  # предсказана ничья — победитель не выбран
 
 
+def _sanitize_playoff_pick(group, pred_home, pred_away, pred_advance, match_home, match_away):
+    """OTS-33 анти-чит: в плей-офф «кто пройдёт» обязан быть согласован со счётом.
+    Решающий счёт → проход форсим на победителя по счёту (хедж «счёт за A / проход
+    за B» под аддитивной моделью невозможен), серия пенальти исключена. Предсказанная
+    ничья → нужен явный выбор прохода ∈ {команды} (победитель по пенальти).
+    Возвращает (advance, penalties). Кидает ValueError (→ 400) при ничьей без выбора.
+    Для не-плей-офф / неполного счёта — выбор оставляем как есть."""
+    if _classify_knockout(group) is None:
+        return pred_advance, ""
+    try:
+        ph, pa = int(pred_home), int(pred_away)
+    except (TypeError, ValueError):
+        return pred_advance, ""  # счёт не задан — форму валидирует фронт
+    if ph != pa:
+        return (match_home if ph > pa else match_away), "no"
+    if _teams_eq(pred_advance, match_home):
+        return match_home, "yes"
+    if _teams_eq(pred_advance, match_away):
+        return match_away, "yes"
+    raise ValueError("При ничейном счёте выбери, кто пройдёт по пенальти")
+
+
 def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
                           act_home, act_away, act_player, act_winner, group,
                           match_home="", match_away=""):
@@ -1130,6 +1152,7 @@ def save_prediction(match_id):
     if err: return err
     data = request.get_json() or {}
     db = get_db()
+    advance, penalties = data.get("advance", ""), data.get("penalties", "")
     # Reject bets on matches that have already started (status >= 2 means live or ended)
     row = db.execute("SELECT match_json FROM match_cache WHERE match_id=%s", [match_id]).fetchone()
     if row:
@@ -1139,14 +1162,22 @@ def save_prediction(match_id):
                 db.close()
                 return jsonify({"error": "Матч уже начался — ставки закрыты"}), 403
         except Exception:
-            pass
+            mj = {}
+        # OTS-33: серверная анти-чит-валидация прохода против предсказанного счёта.
+        try:
+            advance, penalties = _sanitize_playoff_pick(
+                mj.get("group"), data.get("home", ""), data.get("away", ""),
+                advance, mj.get("home", ""), mj.get("away", ""))
+        except ValueError as e:
+            db.close()
+            return jsonify({"error": str(e)}), 400
     db.execute(
         "INSERT INTO user_predictions (user_id, match_id, home_score, away_score, best_player, advance, penalties) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (user_id, match_id) DO UPDATE SET "
         "home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score, best_player=EXCLUDED.best_player, "
         "advance=EXCLUDED.advance, penalties=EXCLUDED.penalties",
         [uid, match_id, data.get("home",""), data.get("away",""), data.get("bestPlayer",""),
-         data.get("advance",""), data.get("penalties","")]
+         advance, penalties]
     )
     db.commit()
     db.close()
