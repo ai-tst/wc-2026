@@ -629,7 +629,7 @@ function mountMessiHint(row, match) {
   btn.className = "v2mc-messi";
   btn.setAttribute("aria-label", "Подсказка от Месси");
   btn.title = "Подсказка от Месси";
-  btn.innerHTML = `<span class="v2mc-messi-goat">🐐</span><span class="v2mc-messi-ai">AI</span>`;
+  btn.innerHTML = `<img class="v2mc-messi-ava" src="/messi-ai.webp" alt="" width="42" height="42" draggable="false"><span class="v2mc-messi-ai">AI</span>`;
   row.appendChild(btn);
 
   // Панель с подсказкой (под шапкой карточки)
@@ -647,7 +647,7 @@ function mountMessiHint(row, match) {
   const showLoading = () => {
     panel.className = "v2mc-messi-panel v2mc-messi-panel--loading";
     let i = 0;
-    panel.innerHTML = `<span class="v2mc-messi-think">🐐</span><span class="v2mc-messi-text"></span>`;
+    panel.innerHTML = `<img class="v2mc-messi-think" src="/messi-ai.webp" alt="" width="26" height="26" draggable="false"><span class="v2mc-messi-text"></span>`;
     const txt = panel.querySelector(".v2mc-messi-text");
     txt.textContent = MESSI_LOADING[0];
     loopTimer = setInterval(() => {
