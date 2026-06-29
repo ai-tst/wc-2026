@@ -46,7 +46,8 @@ _http.mount("https://", _TolerantSSLAdapter())
 CACHE = {
     "matches": {
         "data": None,
-        "timestamp": 0
+        "timestamp": 0,
+        "degraded": False   # True, когда отдаём фолбэк (провайдер sstats лёг)
     }
 }
 
@@ -1794,6 +1795,14 @@ def _safe_schedule_snapshot(db, now_utc):
     return safe
 
 
+def _matches_resp(data):
+    """jsonify + заголовок X-Matches-Degraded, чтобы фронт показал плашку
+    «данные неполные», когда провайдер sstats лёг и мы отдаём фолбэк."""
+    r = jsonify(data)
+    r.headers["X-Matches-Degraded"] = "1" if CACHE["matches"]["degraded"] else "0"
+    return r
+
+
 @app.route("/api/matches")
 def matches():
     try:
@@ -1805,7 +1814,7 @@ def matches():
         if is_live_view:
             cached = CACHE["matches"]
             if cached["data"] is not None and (now_utc.timestamp() - cached["timestamp"]) < CACHE_TTL:
-                return jsonify(cached["data"])
+                return _matches_resp(cached["data"])
 
         # ── Fetch from sports API ────────────────────────────────────────────
         if date_override:
@@ -1952,8 +1961,9 @@ def matches():
         if is_live_view:
             CACHE["matches"]["data"]      = result
             CACHE["matches"]["timestamp"] = now_utc.timestamp()
+            CACHE["matches"]["degraded"]  = False   # живой фетч прошёл — данные полные
 
-        return jsonify(result)
+        return _matches_resp(result)
 
     except Exception as e:
         import traceback
@@ -1969,7 +1979,8 @@ def matches():
         if stale is not None and date_override is None:
             print(f"[matches] API error, serving stale in-memory cache ({len(stale)} matches)")
             CACHE["matches"]["timestamp"] = datetime.now(timezone.utc).timestamp()
-            return jsonify(stale)
+            CACHE["matches"]["degraded"]  = True   # отдаём фолбэк → данные неполные
+            return _matches_resp(stale)
         # Fall back to DB cache (e.g. on fresh server start when API is down).
         # OTS-46: расписание (upcoming/live) поднимаем из schedule_cache —
         # пережить рестарт воркера во время аварии, когда in-memory пуст. К нему
@@ -1990,7 +2001,8 @@ def matches():
                 if date_override is None:
                     CACHE["matches"]["data"]      = fallback
                     CACHE["matches"]["timestamp"] = now_fb.timestamp()
-                return jsonify(fallback)
+                    CACHE["matches"]["degraded"]  = True   # фолбэк из БД → данные неполные
+                return _matches_resp(fallback)
         except Exception:
             pass
         return jsonify({"error": str(e)}), 500

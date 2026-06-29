@@ -49,3 +49,7 @@ export function setActiveMatches(m) { activeMatches = m; }
 
 export let fixturesLoaded = false;
 export function setFixturesLoaded(v) { fixturesLoaded = v; }
+
+// true, когда провайдер данных лёг и матчи отданы из фолбэк-кэша (неполные)
+export let matchesDegraded = false;
+export function setMatchesDegraded(v) { matchesDegraded = v; }

@@ -2,6 +2,7 @@ import {
   state, currentUser, setCurrentUser,
   activeMatches, fixturesLoaded,
   setFixturesLoaded, setActiveMatches,
+  setMatchesDegraded,
   emptyOutrights, updateStateFromServer,
 } from "./store.js";
 import { $ } from "./utils.js";
@@ -54,10 +55,12 @@ async function loadMatches(dateOverride) {
   try {
     const result = await fetchMatchesFromSportDb(dateOverride);
     setActiveMatches(result.matches || []);
+    setMatchesDegraded(!!result.degraded);
     console.info("[API] Loaded fixtures:", result.matches);
   } catch (err) {
     console.error("[API] Failed to load matches:", err);
     setActiveMatches([]);
+    setMatchesDegraded(true);   // совсем не дотянулись до бэка → данные точно неполные
   }
   renderMatches();
   renderMatchResults();

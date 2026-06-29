@@ -90,6 +90,31 @@ body.design-v2 .app { max-width: 1320px; }
   font-size: 18px;
 }
 
+/* Плашка «данные неполные» — провайдер sstats лёг (OTS-45) */
+.data-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+.data-warning__dot {
+  font-size: 9px;
+  line-height: 1;
+  animation: data-warning-pulse 1.6s ease-in-out infinite;
+}
+@keyframes data-warning-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
 .card-header-row {
   display: flex;
   justify-content: space-between;

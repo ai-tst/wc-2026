@@ -1,4 +1,4 @@
-import { state, currentUser, activeMatches } from "./store.js";
+import { state, currentUser, activeMatches, matchesDegraded } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
@@ -220,6 +220,10 @@ function moscowLabel(dateTimeRaw) {
 export function renderMatches() {
   const container       = $("matches-list");
   const actualContainer = $("actual-matches-list");
+
+  // Плашка «данные неполные», когда провайдер sstats лёг (фолбэк-кэш).
+  const degradedBadge = $("matches-degraded-badge");
+  if (degradedBadge) degradedBadge.classList.toggle("hidden", !matchesDegraded);
 
   let visibleMatches;
   if (isV2()) {

@@ -8,6 +8,9 @@ export async function fetchMatchesFromSportDb(dateOverride) {
   return {
     matches: Array.isArray(data) ? data : [],
     total: Array.isArray(data) ? data.length : 0,
+    // Бэк выставляет X-Matches-Degraded=1, когда провайдер sstats лёг и
+    // отдаётся фолбэк-кэш — данные могут быть неполными/устаревшими.
+    degraded: res.headers.get("X-Matches-Degraded") === "1",
   };
 }
 
