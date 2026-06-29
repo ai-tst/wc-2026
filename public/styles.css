@@ -1123,6 +1123,19 @@ input:disabled {
   font-size: 12px;
 }
 
+/* OTS-39: флаг команды, на проход которой поставил участник (плей-офф) */
+.all-bets-flag {
+  display: inline-flex;
+  align-items: center;
+}
+.all-bets-flag .team-flag {
+  margin-right: 0;
+}
+.all-bets-flag--empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* ── Bet validation error toast ────────────────────────────────────────────── */
 
 .bet-error {

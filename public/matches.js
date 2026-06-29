@@ -801,9 +801,25 @@ function createAllBetsSection(match, collapsible = false) {
 
   if (!entries.length) return null;
 
+  // OTS-39: в плей-офф во время матча показываем флаг команды, на проход которой
+  // ставил участник (пик advance или вывод из счёта). Для группового этапа прохода
+  // нет — флаг не выводим.
+  const isPlayoff = Boolean(classifyKnockoutRound(match.group));
+  const advanceFlag = (e) => {
+    if (!isPlayoff) return "";
+    const team = predictedAdvance(e, match);
+    if (!team) return `<span class="all-bets-flag all-bets-flag--empty" title="проход не выбран">—</span>`;
+    const code = TEAM_FLAGS[team];
+    const inner = code
+      ? `<span class="fi fi-${code} team-flag"></span>`
+      : escapeHtml(team);
+    return `<span class="all-bets-flag" title="пройдёт дальше: ${escapeHtml(team)}">${inner}</span>`;
+  };
+
   const rowsHtml = entries.map((e) => `
       <div class="all-bets-row">
         <span class="all-bets-nick">${escapeHtml(e.nickname)}</span>
+        ${advanceFlag(e)}
         <span class="all-bets-score">${e.home ?? "—"}:${e.away ?? "—"}</span>
         <span class="all-bets-player">${e.bestPlayer ? escapeHtml(e.bestPlayer) : "—"}</span>
       </div>`).join("");
