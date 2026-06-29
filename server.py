@@ -799,6 +799,13 @@ def _check_and_send_results():
             winner = admin_winner.get(mid) or _playoff_winner_from_score(
                 mj.get("home", ""), mj.get("away", ""), home_score, away_score)
 
+            # OTS-47: в плей-офф не шлём результат, пока исход не определён. Ничья в
+            # осн.+доп. (status уже 8) решается пенальти, счёт которых апи не отдаёт —
+            # прошедшего дальше выставляет админ. Без winner рассылка ушла бы с проходом
+            # =0 для всех и больше не повторилась (telegram_results_sent). Ждём вердикт.
+            if _classify_knockout(group) is not None and not winner:
+                continue
+
             for user in users:
                 uid = user["id"]
                 if (mid, uid) in sent:

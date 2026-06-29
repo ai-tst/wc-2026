@@ -2,7 +2,7 @@ import { state, currentUser, activeMatches, matchesDegraded } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
-import { calculatePointsForMatch, resolveActualResult, matchPointsFor, classifyKnockoutRound, predictedAdvance } from "./points.js";
+import { calculatePointsForMatch, resolveActualResult, matchPointsFor, classifyKnockoutRound, predictedAdvance, isMatchResultFinal } from "./points.js";
 import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings, apiMatchHint } from "./api-client.js";
 import { runScoreSlot } from "./casino.js";
 import { openShareCard } from "./share-card.js";
@@ -198,8 +198,17 @@ function showBetError(msg) {
 function getMatchPhase(match) {
   const s = Number(match.status);
   if (!s || s <= 2) return "upcoming";
-  if (s <= 7) return "live";
+  // OTS-47: «ended» = результат финален. Для плей-офф ничья без прошедшего дальше
+  // (исход по пенальти ещё не зафиксирован) — не финал: матч остаётся актуальным,
+  // ждёт исхода, а не уходит в «Результаты» с неполным счётом.
+  if (!isMatchResultFinal(match)) return "live";
   return "ended";
+}
+
+// OTS-47: матч уже отыгран по API (status ≥ 8), но плей-офф-исход ещё не определён
+// (ничья, прошедший дальше неизвестен) — фаза «live», но это не игра, а ожидание.
+function isAwaitingOutcome(match) {
+  return Number(match.status) >= 8 && getMatchPhase(match) === "live";
 }
 
 function moscowLabel(dateTimeRaw) {
@@ -286,7 +295,9 @@ export function createMatchRow(match, isActual) {
   const moscow = moscowLabel(match.dateTimeRaw);
   let statusHtml;
   if (phase === "live") {
-    statusHtml = `<div class="match-time match-status--live">● LIVE · ${moscow.date}</div>`;
+    statusHtml = isAwaitingOutcome(match)
+      ? `<div class="match-time match-status--live">⏳ Ждём исход (доп. время / пенальти) · ${moscow.date}</div>`
+      : `<div class="match-time match-status--live">● LIVE · ${moscow.date}</div>`;
   } else if (phase === "ended") {
     statusHtml = `<div class="match-time match-status--ended">Завершён ${match.homeScore ?? "?"}:${match.awayScore ?? "?"} · ${moscow.date}</div>`;
   } else {
@@ -711,7 +722,9 @@ function createMatchRowV2(match) {
         <span>X ${escapeHtml(String(odds.draw ?? "–"))}</span>
         <span>П2 ${escapeHtml(String(odds.away ?? "–"))}</span>
       </div>` : "";
-  const liveBadge  = phase === "live" ? ` <span class="v2mc-live">● LIVE</span>` : "";
+  const liveBadge  = isAwaitingOutcome(match)
+    ? ` <span class="v2mc-live">⏳ ждём исход</span>`
+    : (phase === "live" ? ` <span class="v2mc-live">● LIVE</span>` : "");
 
   const row = document.createElement("div");
   row.className = "match-row v2mc";
@@ -1011,7 +1024,7 @@ export async function renderMatchResults() {
   const container = $("match-results-list");
   if (!container) return;
 
-  const ended = activeMatches.filter((m) => Number(m.status) >= 8);
+  const ended = activeMatches.filter(isMatchResultFinal);
 
   if (!ended.length) {
     container.innerHTML = `<p class="muted small">Завершённых матчей пока нет.</p>`;
@@ -1060,7 +1073,7 @@ export async function renderPlayerProfile(nickname, containerEl) {
   const user = state.users.find((u) => u.nickname === nickname);
   if (!user) { containerEl.innerHTML = `<p class="muted">Пользователь не найден.</p>`; return; }
 
-  const ended = activeMatches.filter((m) => Number(m.status) >= 8);
+  const ended = activeMatches.filter(isMatchResultFinal);
   if (!ended.length) { containerEl.innerHTML = `<p class="muted small">Завершённых матчей пока нет.</p>`; return; }
 
   const ratingsArr = await Promise.all(ended.map((m) => apiGetMatchRatings(m.id).catch(() => ({}))));

@@ -115,6 +115,22 @@ export function resolveActualResult(match) {
   return null;
 }
 
+// OTS-47: матч показываем как ФИНАЛЬНЫЙ результат только когда исход полностью
+// определён. Провайдер sstats ставит status 8 ("Finished") лишь после основного +
+// доп. времени + пенальти (доп. время — статус 6, серия пенальти — 7, оба держатся
+// как live). НО апи не отдаёт счёт серии пенальти: при ничьей в осн.+доп. FT-счёт
+// остаётся ничейным (напр. 1:1), и кто прошёл дальше — решает админ (OTS-21). Пока
+// этого нет, «результат» неполон (счёт без прошедшего), поэтому не выводим его как
+// финальный — матч висит в актуальных, ждёт исхода. Для группы / решающего счёта
+// статуса 8 достаточно.
+export function isMatchResultFinal(match) {
+  if (Number(match.status) < 8) return false;             // ещё идёт (вкл. доп.время/пенальти)
+  if (!classifyKnockoutRound(match.group)) return true;   // группа — счёт самодостаточен
+  const h = Number(match.homeScore), a = Number(match.awayScore);
+  if (Number.isFinite(h) && Number.isFinite(a) && h !== a) return true;  // решающий счёт → прошедший очевиден
+  return Boolean(state.actualMatches?.[match.id]?.winner); // ничья → нужен явный исход (пенальти) от админа
+}
+
 // ── Playoff bracket ───────────────────────────────────────────────────────────
 // Knockout round detected from the match's `group` label (sstats `roundName`).
 // Order matters: "quarter-final"/"semi-final" both contain "final", so those are
