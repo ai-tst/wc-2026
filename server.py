@@ -277,6 +277,9 @@ def init_db():
     db.execute("ALTER TABLE user_predictions ADD COLUMN IF NOT EXISTS penalties TEXT DEFAULT ''")
     db.execute("ALTER TABLE actual_matches   ADD COLUMN IF NOT EXISTS winner    TEXT DEFAULT ''")
     db.execute("ALTER TABLE actual_matches   ADD COLUMN IF NOT EXISTS penalties TEXT DEFAULT ''")
+    # OTS-47: счёт серии пенальти, авто-вытянутый из детального API (для отображения «пен X:Y»)
+    db.execute("ALTER TABLE actual_matches   ADD COLUMN IF NOT EXISTS pen_home  TEXT DEFAULT ''")
+    db.execute("ALTER TABLE actual_matches   ADD COLUMN IF NOT EXISTS pen_away  TEXT DEFAULT ''")
     db.execute("""
         CREATE TABLE IF NOT EXISTS telegram_reminders_sent (
             match_id TEXT PRIMARY KEY
@@ -746,6 +749,92 @@ def _build_ping_message(kind, items):
             + "\n\nЗалетай ставить, пока не поздно 👆")
 
 
+def _fetch_playoff_shootout(match_id):
+    """OTS-47: тянем детальный фид матча (`/games/{id}`) и считаем серию пенальти из
+    событий. Серия в апи — это события type=1, name «Penalty» (забил) / «Missed Penalty»
+    (не забил), elapsed=120, extra=номер удара. Внутриматчевые пенальти сюда не попадают
+    (другой elapsed / уже учтены в счёте). Возвращает (pen_home, pen_away, winner_name)
+    или None, если серии нет / апи недоступен."""
+    try:
+        url = f"https://api.sstats.net/games/{match_id}"
+        resp = _http.get(url, headers=_sstats_headers(), timeout=20)
+        resp.raise_for_status()
+        data = (resp.json() or {}).get("data") or {}
+        game = data.get("game") or {}
+        events = data.get("events") or []
+        home = game.get("homeTeam") or {}
+        away = game.get("awayTeam") or {}
+        home_id, away_id = home.get("id"), away.get("id")
+        ph = pa = 0
+        seen = False
+        for e in events:
+            if e.get("name") in ("Penalty", "Missed Penalty") and e.get("elapsed") == 120 \
+                    and e.get("extra") is not None:
+                seen = True
+                if e.get("name") == "Penalty":
+                    if e.get("teamId") == home_id:
+                        ph += 1
+                    elif e.get("teamId") == away_id:
+                        pa += 1
+        if not seen:
+            return None
+        winner = home.get("name") if ph > pa else (away.get("name") if pa > ph else "")
+        if not winner:
+            return None
+        return ph, pa, winner
+    except Exception as ex:
+        print(f"[shootout] fetch failed for {match_id}: {ex}")
+        return None
+
+
+def _auto_resolve_playoff_winners():
+    """OTS-47: KO-матч, завершённый вничью в осн.+доп. (значит, решён серией пенальти —
+    статус 10 «Finished After Penalty»), не отдаёт победителя в списке матчей. Подтягиваем
+    его из детального фида и пишем в actual_matches (winner + penalties='yes' + счёт серии),
+    если человек-админ ещё не выставил вручную. Дальше всё (очки, рассылка, сетка, фронт)
+    читает actual_matches.winner как обычно. Идемпотентно: выставленное больше не трогаем."""
+    try:
+        db = get_db()
+        rows = db.execute("SELECT match_id, match_json FROM match_cache").fetchall()
+        admin = {r["match_id"]: r["winner"]
+                 for r in db.execute("SELECT match_id, winner FROM actual_matches").fetchall()}
+        for row in rows:
+            mid = row["match_id"]
+            try:
+                mj = json.loads(row["match_json"])
+            except Exception:
+                continue
+            if _classify_knockout(mj.get("group")) is None:
+                continue
+            try:
+                st = int(mj.get("status", 0))
+            except (TypeError, ValueError):
+                st = 0
+            hs, as_ = mj.get("homeScore"), mj.get("awayScore")
+            is_draw = hs is not None and as_ is not None and str(hs) == str(as_)
+            # серия пенальти = KO-финиш (status>=8) с ничейным осн.+доп. счётом (вкл. status 10)
+            if not (st >= 8 and is_draw):
+                continue
+            if admin.get(mid):           # победитель уже есть (админ или мы) — не трогаем
+                continue
+            res = _fetch_playoff_shootout(mid)
+            if not res:
+                continue
+            ph, pa, winner = res
+            db.execute(
+                "INSERT INTO actual_matches (match_id, winner, penalties, pen_home, pen_away) "
+                "VALUES (%s, %s, 'yes', %s, %s) "
+                "ON CONFLICT (match_id) DO UPDATE SET "
+                "winner=EXCLUDED.winner, penalties='yes', "
+                "pen_home=EXCLUDED.pen_home, pen_away=EXCLUDED.pen_away",
+                [mid, winner, str(ph), str(pa)])
+            db.commit()
+            print(f"[shootout] auto-resolved {mid}: pen {ph}:{pa} → {winner}")
+        db.close()
+    except Exception as ex:
+        print(f"[shootout] auto-resolve loop failed: {ex}")
+
+
 def _check_and_send_results():
     """Send each user their match score shortly after a match ends."""
     if not TELEGRAM_TOKEN:
@@ -860,6 +949,7 @@ def _reminder_loop():
     if public_domain:
         _tg_set_webhook(f"https://{public_domain}/api/telegram/webhook")
     while True:
+        _auto_resolve_playoff_winners()   # OTS-47: до рассылки — чтобы проход по пенальти был известен
         _check_and_send_bet_pings()
         _check_and_send_results()
         time.sleep(600)  # every 10 min
@@ -1591,7 +1681,8 @@ def leaderboard():
     users = db.execute("SELECT * FROM users WHERE onboarding_complete=1").fetchall()
 
     actual_matches = {r["match_id"]: {"bestPlayer": r["best_player"],
-                                      "winner": r["winner"], "penalties": r["penalties"]}
+                                      "winner": r["winner"], "penalties": r["penalties"],
+                                      "penHome": r["pen_home"], "penAway": r["pen_away"]}
                       for r in db.execute("SELECT * FROM actual_matches").fetchall()}
 
     ao = db.execute("SELECT * FROM actual_outrights WHERE id=1").fetchone()
@@ -2087,6 +2178,7 @@ def normalize_match(item):
             "homeTeamId": str(home_team.get("id") or ""),
             "awayTeamId": str(away_team.get("id") or ""),
             "status": status,
+            "statusName": item.get("statusName") or "",
             "homeScore": home_score,
             "awayScore": away_score,
             "time": dt.strftime("%H:%M"),

@@ -1224,9 +1224,15 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     ? `<button type="button" class="share-btn" title="Поделиться картинкой" aria-label="Поделиться картинкой">📲</button>`
     : "";
 
-  // OTS-21: в плей-офф показываем, кто реально прошёл (в шапке карточки).
+  // OTS-21/47: в плей-офф показываем, кто реально прошёл (в шапке карточки). Для
+  // серии пенальти — с авто-подтянутым из API счётом серии («по пенальти 3:4»).
+  const penNote = actual?.penalties === "yes"
+    ? (actual?.penHome != null && actual.penHome !== ""
+        ? ` · по пенальти ${escapeHtml(String(actual.penHome))}:${escapeHtml(String(actual.penAway))}`
+        : " · по пенальти")
+    : "";
   const advancedHtml = (isPlayoff && actual?.winner)
-    ? `<div class="v2rc-advanced">прошёл дальше: ${withFlag(actual.winner)}${actual.penalties === "yes" ? " · по пенальти" : ""}</div>`
+    ? `<div class="v2rc-advanced">прошёл дальше: ${withFlag(actual.winner)}${penNote}</div>`
     : "";
 
   const card = document.createElement("div");
