@@ -242,6 +242,18 @@ def init_db():
         ALTER TABLE match_cache ADD COLUMN IF NOT EXISTS ratings_json TEXT DEFAULT NULL
     """)
 
+    # OTS-46: снимок расписания (upcoming/live) — отдельно от match_cache
+    # (там лежат только ЗАВЕРШЁННЫЕ матчи как «история»). Одна строка id=1 с
+    # JSON-массивом not_ended, чтобы пережить рестарт воркера во время аварии
+    # провайдера (sstats 503, см. OTS-45), когда in-memory кэш пуст.
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS schedule_cache (
+            id            INTEGER PRIMARY KEY,
+            snapshot_json TEXT NOT NULL,
+            updated_at    BIGINT
+        )
+    """)
+
     # Migration: add is_admin column if it doesn't exist yet
     db.execute("""
         ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin INTEGER DEFAULT 0
@@ -1751,6 +1763,37 @@ def _fetch_matches_for_date(date_str):
     return result
 
 
+def _safe_schedule_snapshot(db, now_utc):
+    """OTS-46: поднять снимок расписания (upcoming/live) из schedule_cache для
+    фолбэка при аварии провайдера.
+
+    БЕЗОПАСНОСТЬ СТАВОК: status в снимке мог устареть за время аварии, поэтому
+    выкидываем любой матч, чей kickoff УЖЕ прошёл (включая «живые») — иначе
+    фолбэк отдал бы как ставибельный матч, который на самом деле уже начался.
+    Оставляем только матчи строго в будущем."""
+    try:
+        row = db.execute(
+            "SELECT snapshot_json FROM schedule_cache WHERE id=1"
+        ).fetchone()
+    except Exception:
+        return []
+    if not row:
+        return []
+    try:
+        snap = json.loads(row["snapshot_json"])
+    except Exception:
+        return []
+    safe = []
+    for m in snap:
+        try:
+            dt = datetime.fromisoformat(m["dateTimeRaw"].replace("Z", "+00:00"))
+        except Exception:
+            continue  # без читаемого kickoff не можем доказать, что ставить безопасно
+        if dt > now_utc:
+            safe.append(m)
+    return safe
+
+
 @app.route("/api/matches")
 def matches():
     try:
@@ -1831,6 +1874,23 @@ def matches():
         if completed:
             db.commit()
 
+        # ── OTS-46: персистим снимок расписания (upcoming/live) ──────────────
+        # На каждом успешном живом фетче сохраняем not_ended в БД, чтобы при
+        # рестарте воркера во время аварии провайдера (in-memory пуст) поднять
+        # предстоящие матчи из БД, а не остаться с одной «историей».
+        if is_live_view:
+            try:
+                db.execute(
+                    "INSERT INTO schedule_cache (id, snapshot_json, updated_at) "
+                    "VALUES (1, %s, %s) "
+                    "ON CONFLICT (id) DO UPDATE SET "
+                    "snapshot_json=EXCLUDED.snapshot_json, updated_at=EXCLUDED.updated_at",
+                    [json.dumps(not_ended), int(time.time() * 1000)]
+                )
+                db.commit()
+            except Exception as snap_err:
+                print(f"[schedule-cache] snapshot save failed: {snap_err}")
+
         # ── Catch-up: fetch yesterday for any missed completed matches ────────
         if is_live_view:
             try:
@@ -1910,17 +1970,26 @@ def matches():
             print(f"[matches] API error, serving stale in-memory cache ({len(stale)} matches)")
             CACHE["matches"]["timestamp"] = datetime.now(timezone.utc).timestamp()
             return jsonify(stale)
-        # Fall back to DB cache (e.g. on fresh server start when API is down)
+        # Fall back to DB cache (e.g. on fresh server start when API is down).
+        # OTS-46: расписание (upcoming/live) поднимаем из schedule_cache —
+        # пережить рестарт воркера во время аварии, когда in-memory пуст. К нему
+        # добавляем завершённые матчи из match_cache как историю/результаты.
         try:
             db2 = get_db()
-            rows = db2.execute("SELECT match_json FROM match_cache ORDER BY updated_at DESC").fetchall()
+            now_fb   = datetime.now(timezone.utc)
+            schedule = _safe_schedule_snapshot(db2, now_fb)
+            rows     = db2.execute("SELECT match_json FROM match_cache ORDER BY updated_at DESC").fetchall()
             db2.close()
-            if rows:
-                fallback = [json.loads(r["match_json"]) for r in rows]
-                print(f"[matches] API error, serving DB cache ({len(fallback)} matches)")
+            sched_ids  = {m["id"] for m in schedule}
+            historical = [json.loads(r["match_json"]) for r in rows]
+            historical = [m for m in historical if m.get("id") not in sched_ids]
+            fallback   = schedule + historical
+            if fallback:
+                print(f"[matches] API error, serving DB cache "
+                      f"({len(schedule)} upcoming + {len(historical)} completed)")
                 if date_override is None:
                     CACHE["matches"]["data"]      = fallback
-                    CACHE["matches"]["timestamp"] = datetime.now(timezone.utc).timestamp()
+                    CACHE["matches"]["timestamp"] = now_fb.timestamp()
                 return jsonify(fallback)
         except Exception:
             pass
