@@ -623,25 +623,40 @@ def _check_and_send_bet_pings():
         sent = {(r["match_id"], r["user_id"], r["kind"]) for r in db.execute(
             "SELECT match_id, user_id, kind FROM telegram_match_pings").fetchall()}
 
-        # Открытые для ставок матчи (не начались, известны команды, есть kickoff)
-        open_matches = []  # (kickoff, match_id, mj)
-        for row in db.execute("SELECT match_id, match_json FROM match_cache").fetchall():
-            try:
-                mj = json.loads(row["match_json"])
-            except Exception:
+        # Открытые для ставок матчи: тянем напрямую из API (сегодня+завтра).
+        # ВАЖНО: в match_cache пишутся только ЗАВЕРШЁННЫЕ матчи (см. /api/matches),
+        # предстоящих там нет — поэтому читать кэш бесполезно, пингер бы молчал.
+        # status<3 — ещё не стартовал; известны команды; kickoff в горизонте.
+        today_str    = now_utc.strftime("%Y-%m-%d")
+        tomorrow_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
+        try:
+            api_matches = _fetch_matches_for_date(today_str) + _fetch_matches_for_date(tomorrow_str)
+        except Exception as fe:
+            print(f"[tg] open-match fetch failed: {fe}")
+            db.close()
+            return
+
+        open_matches, seen_ids = [], set()  # (kickoff, match_id, mj)
+        for mj in api_matches:
+            mid = mj.get("id")
+            if not mid or mid in seen_ids:
                 continue
-            if int(mj.get("status", 0)) >= 2:
+            if int(mj.get("status", 1)) >= 3:
                 continue  # уже идёт/закончился — поезд ушёл
             home, away = (mj.get("home") or "").strip(), (mj.get("away") or "").strip()
-            if not home or not away:
+            if not home or not away or home == "Home" or away == "Away":
                 continue  # плейсхолдер плей-офф без команд — не пингуем
-            kick_ts = mj.get("kickoffTimestamp") or mj.get("kickoff") or mj.get("timestamp")
-            if not kick_ts:
+            raw = mj.get("dateTimeRaw")
+            if not raw:
                 continue
-            kickoff = datetime.fromtimestamp(int(kick_ts), tz=timezone.utc)
+            try:
+                kickoff = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except Exception:
+                continue
             if kickoff <= now_utc or kickoff > now_utc + _OPEN_HORIZON:
                 continue  # уже стартовал или ещё слишком далеко
-            open_matches.append((kickoff, row["match_id"], mj))
+            seen_ids.add(mid)
+            open_matches.append((kickoff, mid, mj))
 
         if not open_matches:
             db.close()
