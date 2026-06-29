@@ -3,7 +3,7 @@ import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { calculatePointsForMatch, resolveActualResult, matchPointsFor, classifyKnockoutRound, predictedAdvance } from "./points.js";
-import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings } from "./api-client.js";
+import { apiSavePrediction, apiSaveActualMatch, apiGetMatchRatings, apiMatchHint } from "./api-client.js";
 import { runScoreSlot } from "./casino.js";
 import { openShareCard } from "./share-card.js";
 
@@ -612,6 +612,88 @@ function buildPlayoffControls(match, prediction, editable, teamEls) {
 // v2 "Матчи сёдня" card — mirrors the result hero: type·date line, flags + score
 // boxes you fill, odds chips, then a player field + confirm button. Reuses the
 // same save / dropdown / validation logic as the v1 row.
+// OTS-43 — «Подсказка от Месси»: мерцающая AI-кнопка в углу карточки.
+// Клик → нескучная загрузка → эпичный выезд короткой дерзкой подсказки.
+const MESSI_LOADING = [
+  "Лео достаёт инсайд…",
+  "Лео смотрит запись…",
+  "Лео звонит пацанам…",
+  "Лео листает составы…",
+  "ГОАТ на проводе…",
+];
+
+function mountMessiHint(row, match) {
+  // Кнопка-аватар в углу карточки
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "v2mc-messi";
+  btn.setAttribute("aria-label", "Подсказка от Месси");
+  btn.title = "Подсказка от Месси";
+  btn.innerHTML = `<span class="v2mc-messi-goat">🐐</span><span class="v2mc-messi-ai">AI</span>`;
+  row.appendChild(btn);
+
+  // Панель с подсказкой (под шапкой карточки)
+  const panel = document.createElement("div");
+  panel.className = "v2mc-messi-panel";
+  panel.hidden = true;
+  row.querySelector(".v2rc-hero").insertAdjacentElement("afterend", panel);
+
+  let cached = null;     // текст подсказки (клиентский кэш на повторный тык)
+  let loading = false;
+  let loopTimer = null;
+
+  const stopLoop = () => { if (loopTimer) { clearInterval(loopTimer); loopTimer = null; } };
+
+  const showLoading = () => {
+    panel.className = "v2mc-messi-panel v2mc-messi-panel--loading";
+    let i = 0;
+    panel.innerHTML = `<span class="v2mc-messi-think">🐐</span><span class="v2mc-messi-text"></span>`;
+    const txt = panel.querySelector(".v2mc-messi-text");
+    txt.textContent = MESSI_LOADING[0];
+    loopTimer = setInterval(() => {
+      i = (i + 1) % MESSI_LOADING.length;
+      txt.textContent = MESSI_LOADING[i];
+    }, 1800);
+  };
+
+  const showHint = (text) => {
+    stopLoop();
+    panel.className = "v2mc-messi-panel v2mc-messi-panel--done";
+    panel.innerHTML = `<div class="v2mc-messi-quote"></div>`;
+    panel.querySelector(".v2mc-messi-quote").textContent = text;  // textContent — без HTML-инъекций
+  };
+
+  const showError = (msg) => {
+    stopLoop();
+    panel.className = "v2mc-messi-panel v2mc-messi-panel--err";
+    panel.innerHTML = `<div class="v2mc-messi-quote"></div>`;
+    panel.querySelector(".v2mc-messi-quote").textContent =
+      msg || "Лео отвлёкся на Кубок, попробуй ещё раз 🏆";
+  };
+
+  btn.addEventListener("click", async () => {
+    // Повторный клик — просто сворачиваем/разворачиваем (бэк не дёргаем)
+    if (!panel.hidden && !loading) { panel.hidden = true; btn.classList.remove("v2mc-messi--open"); return; }
+    panel.hidden = false;
+    btn.classList.add("v2mc-messi--open");
+    if (cached) { showHint(cached); return; }
+    if (loading) return;
+    loading = true;
+    btn.classList.add("v2mc-messi--busy");
+    showLoading();
+    try {
+      const { hint } = await apiMatchHint(match.id);
+      cached = hint;
+      showHint(hint);
+    } catch (err) {
+      showError(err && err.message);
+    } finally {
+      loading = false;
+      btn.classList.remove("v2mc-messi--busy");
+    }
+  });
+}
+
 function createMatchRowV2(match) {
   const phase      = getMatchPhase(match);   // 'upcoming' | 'live' (ended excluded from this list)
   const editable   = phase === "upcoming";
@@ -786,6 +868,9 @@ function createMatchRowV2(match) {
     const allBets = createAllBetsSection(match, true);
     if (allBets) row.appendChild(allBets);
   }
+
+  // OTS-43 — кнопка «Подсказка от Месси» в углу карточки
+  mountMessiHint(row, match);
 
   return row;
 }

@@ -2611,3 +2611,93 @@ body.design-v2 .v2mc.match-row--highlight { animation: matchDeepLinkPulse 1.3s e
 /* Результат-карточка плей-офф: кто прошёл + разбивка ставки юзера */
 body.design-v2 .v2rc-advanced { font-size: 12px; color: var(--muted); }
 body.design-v2 .v2rc-advanced .team-flag { vertical-align: middle; }
+
+/* ============================================================
+   OTS-43 — «Подсказка от Месси» (AI hint)
+   Фиолетовое AI-свечение — точечный акцент только этой фичи,
+   зелёный --accent системы не трогаем. Радиусы/фон/текст — из токенов.
+   ============================================================ */
+body.design-v2 .v2mc { position: relative; }
+/* центрированную строку лиги/даты держим в стороне от кнопки в углу */
+body.design-v2 .v2mc .v2rc-type { padding: 0 42px; }
+
+.v2mc-messi {
+  --ai-1: #a855f7; --ai-2: #7c3aed; --ai-3: #6366f1;
+  --ai-glow: rgba(168, 85, 247, .5);
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  width: 40px; height: 40px; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  line-height: 1;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--bg-soft), var(--bg-soft)) padding-box,
+    linear-gradient(135deg, var(--ai-1), var(--ai-2), var(--ai-3)) border-box;
+  color: var(--text);
+  cursor: pointer;
+  animation: messiBreath 2.6s ease-in-out infinite;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.v2mc-messi-goat { font-size: 18px; transition: transform var(--transition-fast); }
+.v2mc-messi-ai {
+  font-family: "Russo One", var(--font-main);
+  font-size: 7px; letter-spacing: .5px; margin-top: -2px;
+  background: linear-gradient(135deg, var(--ai-1), var(--ai-3));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+@keyframes messiBreath {
+  0%, 100% { box-shadow: 0 0 6px 1px var(--ai-glow); }
+  50%      { box-shadow: 0 0 16px 4px var(--ai-glow); }
+}
+.v2mc-messi:hover { transform: scale(1.08); box-shadow: 0 0 18px 5px var(--ai-glow); }
+.v2mc-messi:focus-visible { outline: 2px solid var(--ai-1); outline-offset: 2px; }
+.v2mc-messi--open .v2mc-messi-goat { transform: scale(.9); }
+.v2mc-messi--busy { animation: messiSpinGlow 1s ease-in-out infinite; }
+@keyframes messiSpinGlow {
+  0%, 100% { box-shadow: 0 0 8px 2px var(--ai-glow); }
+  50%      { box-shadow: 0 0 20px 6px rgba(99, 102, 241, .6); }
+}
+
+.v2mc-messi-panel {
+  margin-top: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(var(--bg-softer), var(--bg-softer)) padding-box,
+    linear-gradient(135deg, rgba(168, 85, 247, .6), rgba(99, 102, 241, .5)) border-box;
+  box-shadow: 0 0 18px rgba(124, 58, 237, .16);
+  padding: 12px 14px;
+  animation: messiReveal .34s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes messiReveal {
+  from { opacity: 0; transform: translateY(-6px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+.v2mc-messi-quote {
+  white-space: pre-line;
+  font-size: 13.5px; line-height: 1.5; color: var(--text); text-align: left;
+}
+.v2mc-messi-panel--err .v2mc-messi-quote { color: var(--muted); }
+
+.v2mc-messi-panel--loading { display: flex; align-items: center; gap: 10px; }
+.v2mc-messi-think { font-size: 22px; animation: messiThink 1.1s ease-in-out infinite; }
+@keyframes messiThink {
+  0%, 100% { transform: translateY(0) rotate(-4deg); opacity: .85; }
+  50%      { transform: translateY(-3px) rotate(4deg); opacity: 1; }
+}
+.v2mc-messi-text {
+  font-size: 13px;
+  background: linear-gradient(90deg, var(--muted), #c4b5fd, var(--muted));
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: messiShimmer 1.6s linear infinite;
+}
+@keyframes messiShimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2mc-messi, .v2mc-messi--busy, .v2mc-messi-think, .v2mc-messi-text, .v2mc-messi-panel {
+    animation: none;
+  }
+}
