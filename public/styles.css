@@ -1642,6 +1642,11 @@ body.design-v2 .team-flag { width: 22px; height: 15px; flex-shrink: 0; vertical-
 .v2rc-vibe--bad { color: #ff8a9b; }
 .v2rc-pts { text-align: right; font-weight: 800; color: var(--muted); }
 
+/* OTS-36: колонка «исход» (флаг прохода) — только в плей-офф */
+.v2rc-outcome { display: flex; align-items: center; min-width: 0; }
+.v2rc-outcome .team-flag { width: 20px; height: 14px; }
+.v2rc-grid--ko .v2rc-row { grid-template-columns: 96px 26px 44px 1fr auto 42px; }
+
 .v2rc-row--label { padding: 2px 8px; }
 .v2rc-row--label span {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
@@ -1814,6 +1819,8 @@ details[open] > .v2rc-others-sum::before { content: "▼ "; }
 
 @media (max-width: 480px) {
   .v2rc-row { grid-template-columns: 68px 32px 1fr auto 30px; gap: 6px; padding: 6px 4px; }
+  .v2rc-grid--ko .v2rc-row { grid-template-columns: 68px 22px 32px 1fr auto 30px; }
+  .v2rc-outcome .team-flag { width: 18px; height: 13px; }
   .v2rc-vibe { font-size: 10px; }
   .v2rc-nums { font-size: 26px; }
   .v2rc-t { font-size: 13px; }
@@ -2583,10 +2590,3 @@ body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--pulse { animation: v2mcSidePulse 0.4
 /* Результат-карточка плей-офф: кто прошёл + разбивка ставки юзера */
 body.design-v2 .v2rc-advanced { font-size: 12px; color: var(--muted); }
 body.design-v2 .v2rc-advanced .team-flag { vertical-align: middle; }
-body.design-v2 .v2rc-breakdown {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px;
-  padding: 8px 8px 2px; font-size: 12px; color: var(--muted);
-}
-body.design-v2 .v2rc-bd-item { display: inline-flex; align-items: center; gap: 5px; }
-body.design-v2 .v2rc-bd-ok { color: var(--accent); font-weight: 700; }
-body.design-v2 .v2rc-bd-no { color: var(--muted); font-weight: 700; }

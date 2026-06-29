@@ -1033,10 +1033,25 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const actualBestList = Array.isArray(actualBestRaw) ? actualBestRaw : (actualBestRaw ? [actualBestRaw] : []);
   const actualBestHtml = actualBestList.map((p) => `${escapeHtml(p)}${ratingTag(ratings, p)}`).join(" / ") || "—";
 
-  // One aligned row: who | score | player | pts
-  const row = (cls, who, score, playerHtml, vibeHtml, ptsHtml) => `
+  // OTS-36: в плей-офф перед счётом — колонка «исход»: флаг команды, на проход
+  // которой ставил игрок (для ТЫ и для всех участников). Заменяет прежнюю
+  // отдельную строку-разбивку «Проход ✓ … Счёт ✗ … Игрок».
+  const isPlayoff = Boolean(classifyKnockoutRound(match.group));
+  const flagOnly = (name) => {
+    if (!name) return '<span class="v2rc-muted">—</span>';
+    const code = TEAM_FLAGS[name];
+    return code
+      ? `<span class="fi fi-${code} team-flag" title="${escapeHtml(name)}"></span>`
+      : escapeHtml(name);
+  };
+  const outcomeCell = (advance) =>
+    isPlayoff ? `<span class="v2rc-outcome">${flagOnly(advance)}</span>` : "";
+
+  // One aligned row: who | [исход] | score | player | vibe | pts
+  const row = (cls, who, outcomeHtml, score, playerHtml, vibeHtml, ptsHtml) => `
     <div class="v2rc-row ${cls}">
       <span class="v2rc-who">${who}</span>
+      ${outcomeHtml}
       <span class="v2rc-score">${escapeHtml(score)}</span>
       <span class="v2rc-player">${playerHtml}</span>
       ${vibeHtml}
@@ -1044,7 +1059,8 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     </div>`;
 
   const labelRow = row("v2rc-row--label",
-    "", "счёт", "<span>лучший игрок</span>", `<span class="v2rc-vibe"></span>`, "<span>очки</span>");
+    "", isPlayoff ? `<span class="v2rc-outcome">исход</span>` : "",
+    "счёт", "<span>лучший игрок</span>", `<span class="v2rc-vibe"></span>`, "<span>очки</span>");
 
   // My bet
   const pred = me?.matches?.[match.id];
@@ -1053,7 +1069,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const myPlayer = pred?.bestPlayer ? escapeHtml(pred.bestPlayer) + ratingTag(ratings, pred.bestPlayer) : "—";
   const myInfo = matchPointsFor(pred, match);
   const myPts = myInfo.total;
-  const myRow = row("v2rc-row--mine", "ТЫ", myScore, myPlayer,
+  const myRow = row("v2rc-row--mine", "ТЫ", outcomeCell(pred?.advance), myScore, myPlayer,
     vibeCell(myPts, match.id + (me?.nickname || "")),
     `<span class="${myPts > 0 ? "v2rc-pos" : ""}">${fmtPts(myPts)}</span>`);
 
@@ -1064,6 +1080,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     .filter((x) => x.p && (x.p.home !== "" || x.p.away !== ""))
     .map((x) => ({
       nick: x.u.nickname,
+      advance: x.p.advance,
       score: `${x.p.home ?? "—"}:${x.p.away ?? "—"}`,
       player: x.p.bestPlayer ? escapeHtml(x.p.bestPlayer) + ratingTag(ratings, x.p.bestPlayer) : "—",
       pts: matchPointsFor(x.p, match).total,
@@ -1073,8 +1090,8 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
   const othersHtml = others.length ? `
     <details class="v2rc-others">
       <summary class="v2rc-others-sum">Ставки участников (${others.length})</summary>
-      <div class="v2rc-grid">
-        ${others.map((o) => row("v2rc-row--other", escapeHtml(o.nick), o.score, o.player,
+      <div class="v2rc-grid${isPlayoff ? " v2rc-grid--ko" : ""}">
+        ${others.map((o) => row("v2rc-row--other", escapeHtml(o.nick), outcomeCell(o.advance), o.score, o.player,
             vibeCell(o.pts, match.id + o.nick),
             `<span class="${o.pts > 0 ? "v2rc-pos" : "v2rc-muted"}">${fmtPts(o.pts)}</span>`)).join("")}
       </div>
@@ -1088,23 +1105,10 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
     ? `<button type="button" class="share-btn" title="Поделиться картинкой" aria-label="Поделиться картинкой">📲</button>`
     : "";
 
-  // OTS-21: в плей-офф показываем, кто реально прошёл, и разбивку ставки юзера
-  // (проход / счёт / игрок — независимо), чтобы не было путаницы «угадал 1:1, а проход?».
-  const isPlayoff = Boolean(classifyKnockoutRound(match.group));
+  // OTS-21: в плей-офф показываем, кто реально прошёл (в шапке карточки).
   const advancedHtml = (isPlayoff && actual?.winner)
     ? `<div class="v2rc-advanced">прошёл дальше: ${withFlag(actual.winner)}${actual.penalties === "yes" ? " · по пенальти" : ""}</div>`
     : "";
-  let myBreakdown = "";
-  if (isPlayoff && (pred?.advance || predHas)) {
-    const mark = (ok) => (ok ? '<span class="v2rc-bd-ok">✓</span>' : '<span class="v2rc-bd-no">✗</span>');
-    const picked = pred?.advance ? withFlag(pred.advance) : "—";
-    myBreakdown = `
-    <div class="v2rc-breakdown">
-      <span class="v2rc-bd-item">Проход ${mark(myInfo.outcomeCorrect)} <span class="muted small">${picked}</span></span>
-      <span class="v2rc-bd-item">Счёт ${mark(myInfo.exactScore)}</span>
-      <span class="v2rc-bd-item">Игрок ${mark(myInfo.bestPlayerCorrect)}</span>
-    </div>`;
-  }
 
   const card = document.createElement("div");
   card.className = "result-card v2rc";
@@ -1120,11 +1124,10 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
       <div class="v2rc-best">⭐ ${actualBestHtml}</div>
       ${advancedHtml}
     </div>
-    <div class="v2rc-grid">
+    <div class="v2rc-grid${isPlayoff ? " v2rc-grid--ko" : ""}">
       ${labelRow}
       ${myRow}
     </div>
-    ${myBreakdown}
     ${othersHtml}
   `;
 
