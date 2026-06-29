@@ -250,6 +250,10 @@ def init_db():
     db.execute("""
         ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT DEFAULT NULL
     """)
+    # OTS-41: мут напоминалок бота (1 = заткнуть)
+    db.execute("""
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_muted INTEGER DEFAULT 0
+    """)
     db.execute("""
         ALTER TABLE users ADD COLUMN IF NOT EXISTS design_version TEXT DEFAULT 'v1'
     """)
@@ -268,6 +272,16 @@ def init_db():
             match_id TEXT NOT NULL,
             user_id  TEXT NOT NULL,
             PRIMARY KEY (match_id, user_id)
+        )
+    """)
+    # OTS-41: страж бет-напоминалок. kind ∈ {'open','deadline'} → максимум 2 пинга
+    # на матч на человека (открытие + дедлайн), и каждый ровно один раз.
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS telegram_match_pings (
+            match_id TEXT NOT NULL,
+            user_id  TEXT NOT NULL,
+            kind     TEXT NOT NULL,
+            PRIMARY KEY (match_id, user_id, kind)
         )
     """)
 
@@ -296,6 +310,8 @@ if not os.environ.get("WC2026_TESTING"):
 # ==========================================
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+# Публичный базовый URL для диплинков из бота (клик → прямо на экран ставки матча)
+PUBLIC_BASE_URL = "https://" + (os.environ.get("RAILWAY_PUBLIC_DOMAIN") or "tst-wc.ru").strip().rstrip("/")
 
 # ── Point calculation (mirrors points.js logic) ───────────────────────────────
 import unicodedata as _ud
@@ -502,6 +518,30 @@ def telegram_webhook():
     if not chat_id:
         return jsonify({"ok": True})
 
+    # OTS-41: мут/анмут напоминалок
+    if text.startswith("/mute") or text.startswith("/stop"):
+        db = get_db()
+        r = db.execute("UPDATE users SET tg_muted=1 WHERE telegram_chat_id=%s", [str(chat_id)])
+        db.commit()
+        muted = (r.rowcount or 0) > 0
+        db.close()
+        _tg_send(chat_id,
+            "🔇 Всё, заткнулся. Напоминаний про матчи больше не шлю.\n"
+            "Передумаешь — пиши <b>/unmute</b>." if muted else
+            "Ты ещё не привязал аккаунт. Напиши <b>/start НикнеймНаСайте</b>.")
+        return jsonify({"ok": True})
+
+    if text.startswith("/unmute"):
+        db = get_db()
+        r = db.execute("UPDATE users SET tg_muted=0 WHERE telegram_chat_id=%s", [str(chat_id)])
+        db.commit()
+        unmuted = (r.rowcount or 0) > 0
+        db.close()
+        _tg_send(chat_id,
+            "🔊 Окей, снова буду пинговать про новые матчи. Не проспи ставку ⚽" if unmuted else
+            "Ты ещё не привязал аккаунт. Напиши <b>/start НикнеймНаСайте</b>.")
+        return jsonify({"ok": True})
+
     if text.startswith("/start"):
         parts = text.split(maxsplit=1)
         nickname = parts[1].strip() if len(parts) > 1 else ""
@@ -523,93 +563,157 @@ def telegram_webhook():
         db.close()
         _tg_send(chat_id,
             f'✅ Готово! Ты подключён как <b>{nickname}</b>.\n'
-            'Буду писать за 2 часа до каждого матча — не забудь поставить ставку ⚽')
+            'Буду пинговать про новые матчи, на которые ты ещё не поставил, и за пару часов '
+            'до старта, если ставки так и нет ⚽\n'
+            'Достал — пиши <b>/mute</b>, верну звук <b>/unmute</b>.')
     return jsonify({"ok": True})
 
 
-def _check_and_send_reminders():
-    """Send ONE daily reminder 2h before the first match of the game day.
-    Groups all matches within 12h of the first match as the same game day."""
+# OTS-41: бет-напоминалки. Пинг ровно тех, кто ещё НЕ поставил, по матчам, на
+# которые ставки ещё открыты. Два типа на матч на человека (max 2 пинга):
+#   'open'     — матч скоро (в горизонте), «новый матч, ты не поставил, го»
+#   'deadline' — до старта ~2 часа, «последний шанс»
+# Поставил → оба типа по этому матчу выключаются. Пачка → один дайджест.
+_OPEN_HORIZON   = timedelta(hours=30)         # «новый/скоро» матч: в пределах ~суток+
+_DEADLINE_AHEAD = timedelta(hours=2, minutes=15)  # дедлайн-пинок: ~2 часа до старта
+
+
+def _match_link(mid):
+    return f"{PUBLIC_BASE_URL}/?match={mid}"
+
+
+def _msk(kickoff):
+    return (kickoff + timedelta(hours=3)).strftime("%d.%m %H:%M")
+
+
+def _plural_matches(n):
+    if n % 100 in (11, 12, 13, 14):
+        return "матчей"
+    d = n % 10
+    if d == 1:
+        return "матч"
+    if d in (2, 3, 4):
+        return "матча"
+    return "матчей"
+
+
+def _check_and_send_bet_pings():
+    """Пинговать подписчиков о матчах, на которые они ещё не поставили."""
     if not TELEGRAM_TOKEN:
         return
     try:
         now_utc = datetime.now(timezone.utc)
-
         db = get_db()
-        rows = db.execute("SELECT match_id, match_json FROM match_cache").fetchall()
-        sent_keys = {r["match_id"] for r in db.execute("SELECT match_id FROM telegram_reminders_sent").fetchall()}
 
-        subscribers = db.execute(
-            "SELECT telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL"
+        # Подписчики, которые не замутили напоминалки
+        users = db.execute(
+            "SELECT id, telegram_chat_id FROM users "
+            "WHERE telegram_chat_id IS NOT NULL AND COALESCE(tg_muted,0)=0"
         ).fetchall()
-        chat_ids = [r["telegram_chat_id"] for r in subscribers]
-        if not chat_ids:
+        if not users:
             db.close()
             return
 
-        # Collect all upcoming matches with kickoff timestamps
-        upcoming = []
-        for row in rows:
+        # Уже сделанные ставки: (user_id, match_id) с непустым счётом
+        bets = {(r["user_id"], r["match_id"]) for r in db.execute(
+            "SELECT user_id, match_id FROM user_predictions "
+            "WHERE home_score <> '' OR away_score <> ''").fetchall()}
+
+        # Уже отправленные пинги: (match_id, user_id, kind)
+        sent = {(r["match_id"], r["user_id"], r["kind"]) for r in db.execute(
+            "SELECT match_id, user_id, kind FROM telegram_match_pings").fetchall()}
+
+        # Открытые для ставок матчи (не начались, известны команды, есть kickoff)
+        open_matches = []  # (kickoff, match_id, mj)
+        for row in db.execute("SELECT match_id, match_json FROM match_cache").fetchall():
             try:
                 mj = json.loads(row["match_json"])
             except Exception:
                 continue
             if int(mj.get("status", 0)) >= 2:
-                continue
+                continue  # уже идёт/закончился — поезд ушёл
+            home, away = (mj.get("home") or "").strip(), (mj.get("away") or "").strip()
+            if not home or not away:
+                continue  # плейсхолдер плей-офф без команд — не пингуем
             kick_ts = mj.get("kickoffTimestamp") or mj.get("kickoff") or mj.get("timestamp")
             if not kick_ts:
                 continue
             kickoff = datetime.fromtimestamp(int(kick_ts), tz=timezone.utc)
-            if kickoff < now_utc:
-                continue
-            upcoming.append((kickoff, row["match_id"], mj))
+            if kickoff <= now_utc or kickoff > now_utc + _OPEN_HORIZON:
+                continue  # уже стартовал или ещё слишком далеко
+            open_matches.append((kickoff, row["match_id"], mj))
 
-        if not upcoming:
+        if not open_matches:
+            db.close()
+            return
+        open_matches.sort(key=lambda x: x[0])
+
+        # Собираем, что кому слать: pending[uid] = {'open':[...], 'deadline':[...]}
+        deadline_cut = now_utc + _DEADLINE_AHEAD
+        pending = {}
+        chat_of = {}
+        for uid, cid in ((u["id"], u["telegram_chat_id"]) for u in users):
+            chat_of[uid] = cid
+            for kickoff, mid, mj in open_matches:
+                if (uid, mid) in bets:
+                    continue  # уже поставил — не трогаем
+                kind = "deadline" if kickoff <= deadline_cut else "open"
+                if (mid, uid, kind) in sent:
+                    continue  # этот тип уже слали
+                pending.setdefault(uid, {}).setdefault(kind, []).append((kickoff, mid, mj))
+
+        if not pending:
             db.close()
             return
 
-        upcoming.sort(key=lambda x: x[0])
-        first_kickoff, first_mid, _ = upcoming[0]
+        sent_count = 0
+        for uid, by_kind in pending.items():
+            cid = chat_of[uid]
+            for kind in ("deadline", "open"):
+                items = by_kind.get(kind)
+                if not items:
+                    continue
+                items.sort(key=lambda x: x[0])
+                msg = _build_ping_message(kind, items)
+                _tg_send(cid, msg)
+                for _, mid, _mj in items:
+                    db.execute(
+                        "INSERT INTO telegram_match_pings (match_id, user_id, kind) "
+                        "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", [mid, uid, kind])
+                db.commit()
+                sent_count += 1
+                time.sleep(0.06)  # под лимит Telegram (~16 msg/s)
 
-        # Day key: keyed by the first match of the game day
-        day_key = f"day:{first_mid}"
-        if day_key in sent_keys:
-            db.close()
-            return
-
-        # Only send reminder in the 1h45m–2h15m window before the first match
-        window_start = first_kickoff - timedelta(hours=2, minutes=15)
-        window_end   = first_kickoff - timedelta(hours=1, minutes=45)
-        if not (window_start <= now_utc <= window_end):
-            db.close()
-            return
-
-        # Collect all matches within 12h of the first match (same game day)
-        day_matches = [(ko, mj) for ko, _, mj in upcoming
-                       if ko <= first_kickoff + timedelta(hours=12)]
-
-        lines = []
-        for ko, mj in day_matches:
-            local_time = (ko + timedelta(hours=3)).strftime("%H:%M")
-            lines.append(f"🕐 {local_time} МСК — <b>{mj.get('home','?')}</b> vs <b>{mj.get('away','?')}</b>")
-
-        msg = (
-            f"⚽ <b>Игровой день начинается через ~2 часа!</b>\n\n"
-            + "\n".join(lines) +
-            f"\n\n<a href='https://tst-wc.ru'>Ставь на сайте</a> до начала каждого матча ✍️\n\n"
-            f"<i>Кто использует ИИ при ставках, тот пидорас 🤓</i>"
-        )
-
-        for cid in chat_ids:
-            _tg_send(cid, msg)
-
-        db.execute("INSERT INTO telegram_reminders_sent (match_id) VALUES (%s) ON CONFLICT DO NOTHING", [day_key])
-        db.commit()
-        print(f"[tg] daily reminder sent: {len(day_matches)} matches, first={first_kickoff.isoformat()}")
-
+        if sent_count:
+            print(f"[tg] bet pings sent: {sent_count} messages to {len(pending)} users")
         db.close()
     except Exception as e:
-        print(f"[tg] reminder check error: {e}")
+        print(f"[tg] bet ping error: {e}")
+
+
+def _build_ping_message(kind, items):
+    """items: список (kickoff, match_id, mj), уже отсортирован. Тон — Отсос."""
+    def line(kickoff, mid, mj):
+        return (f"🕐 {_msk(kickoff)} МСК — "
+                f"<a href='{_match_link(mid)}'>{mj.get('home','?')} — {mj.get('away','?')}</a>")
+
+    if kind == "deadline":
+        if len(items) == 1:
+            ko, mid, mj = items[0]
+            return (f"⏰ До <b>{mj.get('home','?')} — {mj.get('away','?')}</b> ~2 часа, "
+                    f"а ставки от тебя нет.\nПоследний шанс не быть лохом 👇\n{_match_link(mid)}")
+        return ("⏰ <b>Время уходит!</b> Скоро стартуют, а ставок от тебя нет:\n\n"
+                + "\n".join(line(*it) for it in items)
+                + "\n\nБыстро, пока не закрылись 👆")
+
+    # kind == "open"
+    if len(items) == 1:
+        ko, mid, mj = items[0]
+        return (f"🚨 <b>НОВЫЙ МАТЧ</b>\n\n<b>{mj.get('home','?')} — {mj.get('away','?')}</b>\n"
+                f"🕐 {_msk(ko)} МСК\n\nСтавки от тебя нет. Не позорься 👇\n{_match_link(mid)}")
+    return (f"🚨 <b>Открылось {len(items)} {_plural_matches(len(items))}</b>, а ставок от тебя нет 🤡\n\n"
+            + "\n".join(line(*it) for it in items)
+            + "\n\nЗалетай ставить, пока не поздно 👆")
 
 
 def _check_and_send_results():
@@ -719,7 +823,7 @@ def _reminder_loop():
     if public_domain:
         _tg_set_webhook(f"https://{public_domain}/api/telegram/webhook")
     while True:
-        _check_and_send_reminders()
+        _check_and_send_bet_pings()
         _check_and_send_results()
         time.sleep(600)  # every 10 min
 

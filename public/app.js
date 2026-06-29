@@ -64,6 +64,34 @@ async function loadMatches(dateOverride) {
   renderScoreboard();
   renderStats();
   scheduleRefreshIfLive();
+  applyMatchDeepLink();
+}
+
+// ── Deep link (?match=<id>) — прыжок прямо на карточку ставки (пинг из бота) ────
+let pendingMatchDeepLink = new URLSearchParams(location.search).get("match");
+
+function clearMatchDeepLink() {
+  pendingMatchDeepLink = null;
+  const url = new URL(location.href);
+  url.searchParams.delete("match");
+  history.replaceState(null, "", url.pathname + url.search + url.hash);
+}
+
+function applyMatchDeepLink() {
+  if (!pendingMatchDeepLink) return;
+  const el = document.getElementById("match-" + pendingMatchDeepLink);
+  if (!el) {
+    // Карточки ещё не отрисованы — ждём; сдаёмся, только когда матчи уже загружены
+    // (значит, на этот матч ставки закрыты/он не в списке).
+    if (fixturesLoaded) clearMatchDeepLink();
+    return;
+  }
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("match-row--highlight");
+  setTimeout(() => el.classList.remove("match-row--highlight"), 2600);
+  const firstInput = el.querySelector("input");
+  if (firstInput && !firstInput.disabled) setTimeout(() => firstInput.focus(), 400);
+  clearMatchDeepLink();
 }
 
 async function ensureMatchesLoaded() {
@@ -97,6 +125,7 @@ async function refreshLeaderboard() {
       renderActualOutrights();
       renderAdminPlayers();
     }
+    applyMatchDeepLink();
   } catch (err) {
     console.error("[Leaderboard] Failed to load:", err);
   }

@@ -629,6 +629,7 @@ function createMatchRowV2(match) {
 
   const row = document.createElement("div");
   row.className = "match-row v2mc";
+  row.id = "match-" + match.id;   // OTS-41: цель диплинка из бота (?match=<id>)
 
   const hero = document.createElement("div");
   hero.className = "v2rc-hero";

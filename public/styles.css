@@ -2589,6 +2589,14 @@ body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked.v2mc-side-btn--on:hover .team
 }
 body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--pulse { animation: v2mcSidePulse 0.45s ease-in-out 3; }
 
+/* OTS-41: подсветка карточки матча при переходе по диплинку из бота (?match=).
+   Только акцентное кольцо (токен --accent-soft) — точечно, дефолтный бордер карточки не трогаем. */
+@keyframes matchDeepLinkPulse {
+  0%   { box-shadow: 0 0 0 4px var(--accent-soft); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+body.design-v2 .v2mc.match-row--highlight { animation: matchDeepLinkPulse 1.3s ease-out 2; }
+
 /* Админ-ввод факта плей-офф (кто прошёл + была ли серия пенальти) */
 .actual-playoff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .actual-winner-select {
