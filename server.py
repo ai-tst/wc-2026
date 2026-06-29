@@ -1735,6 +1735,11 @@ def _fetch_matches_for_date(date_str):
     """Fetch and normalize all matches for a specific UTC date from the sports API."""
     url = f"https://api.sstats.net/games/list?LeagueId={_WC_LEAGUE_ID}&Year=2026&Date={date_str}&Limit=100"
     resp = _http.get(url, headers=_sstats_headers(), timeout=20)
+    # Провайдер на техработах отдаёт 503 с JSON-телом {"status":503,...}.
+    # Без этой проверки unwrap() вернёт [] (не список), и /api/matches решит,
+    # что «матчей нет», и затрёт хороший кэш с предстоящими матчами пустым.
+    # Кидаем — тогда matches() уходит в except и отдаёт прошлый валидный кэш.
+    resp.raise_for_status()
     result = []
     for item in unwrap(resp.json()):
         lid = item.get("leagueId") or (item.get("league") or {}).get("id")
@@ -1896,10 +1901,14 @@ def matches():
             print(traceback.format_exc().encode("ascii", "backslashreplace").decode("ascii"))
         except Exception:
             pass
-        # Serve stale in-memory cache if available
+        # Serve stale in-memory cache if available. Освежаем timestamp, чтобы
+        # на время аварии провайдера держать последний валидный снимок (с
+        # предстоящими матчами) и НЕ долбить упавший upstream каждым запросом —
+        # ретрай произойдёт через CACHE_TTL, само починится при восстановлении.
         stale = CACHE["matches"]["data"]
-        if stale is not None:
+        if stale is not None and date_override is None:
             print(f"[matches] API error, serving stale in-memory cache ({len(stale)} matches)")
+            CACHE["matches"]["timestamp"] = datetime.now(timezone.utc).timestamp()
             return jsonify(stale)
         # Fall back to DB cache (e.g. on fresh server start when API is down)
         try:
@@ -1909,6 +1918,9 @@ def matches():
             if rows:
                 fallback = [json.loads(r["match_json"]) for r in rows]
                 print(f"[matches] API error, serving DB cache ({len(fallback)} matches)")
+                if date_override is None:
+                    CACHE["matches"]["data"]      = fallback
+                    CACHE["matches"]["timestamp"] = datetime.now(timezone.utc).timestamp()
                 return jsonify(fallback)
         except Exception:
             pass
