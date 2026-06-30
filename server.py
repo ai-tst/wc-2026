@@ -1933,6 +1933,10 @@ def _matches_resp(data):
 # никакой матч физически не мог выпасть из лайва.
 _LIVE_STATUS_MIN = 3
 _LIVE_STATUS_MAX = 7
+# Сколько держим завершённый матч в живой выдаче после kickoff (по времени старта,
+# не по дате-строке). 48ч: покрывает плей-офф «ждём исход» (ничья → ждём ввода
+# победителя пенальти админом) и свежие результаты, не теряя матч из-за таймзоны.
+_ENDED_RETENTION = timedelta(hours=48)
 
 
 def is_live_status(status):
@@ -1957,29 +1961,33 @@ def filter_live_view(raw_matches, now_utc, horizon=_OPEN_HORIZON):
     Раскладка по фазам:
       • ИДЁТ (is_live_status)   — ВСЕГДА в выдаче. Без оглядки на горизонт ставок,
         дату и написание названий команд. Это и есть инвариант OTS-56.
-      • ЗАВЕРШЁН (is_ended_status) — оставляем, если стартовал сегодня/вчера (UTC);
-        матч со стартом ~23:00 UTC дня N появляется в списке дня N+1 с date=N.
+      • ЗАВЕРШЁН (is_ended_status) — оставляем, если kickoff был недавно
+        (_ENDED_RETENTION). ВАЖНО: по времени старта, НЕ по строке-дате. Раньше
+        был `date in (today,yesterday)` по UTC, а m["date"] — в +03 (МСК): матч,
+        стартующий 00:00 МСК (21:00 UTC «вчера»), имеет date=«завтра по UTC» и
+        выпадал из выдачи СРАЗУ после финиша (баг: France–Sweden «появлялся и
+        исчезал»). Сравнение инстантов таймзоно-безопасно.
       • UPCOMING                — только в пределах горизонта ставок.
     """
-    today_str     = now_utc.strftime("%Y-%m-%d")
-    yesterday_str = (now_utc - timedelta(days=1)).strftime("%Y-%m-%d")
-    cutoff_utc    = now_utc + horizon
+    cutoff_utc      = now_utc + horizon
+    ended_keep_from = now_utc - _ENDED_RETENTION
     out = []
     for m in raw_matches:
         status = m.get("status", 1)
         if is_live_status(status):              # ИДЁТ — всегда в лайве (инвариант)
             out.append(m)
             continue
-        if is_ended_status(status):            # завершён — только свежий
-            if m.get("date") in (today_str, yesterday_str):
-                out.append(m)
-            continue
-        try:                                   # upcoming — в горизонте ставок
+        try:
             dt = datetime.fromisoformat(m["dateTimeRaw"].replace("Z", "+00:00"))
-            if dt <= cutoff_utc:
-                out.append(m)
         except Exception:
             out.append(m)                      # без читаемого kickoff — не теряем
+            continue
+        if is_ended_status(status):            # завершён — пока свежий (по kickoff)
+            if dt >= ended_keep_from:
+                out.append(m)
+            continue
+        if dt <= cutoff_utc:                   # upcoming — в горизонте ставок
+            out.append(m)
     return out
 
 

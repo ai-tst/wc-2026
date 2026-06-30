@@ -94,7 +94,7 @@ inv.case(
     "идущий матч переживает все фильтры в смешанном списке",
     lambda: ok("LIVE" in ids(server.filter_live_view([
         mk(2, offset_hours=200, mid="FAR_FUTURE"),         # за горизонтом — отсекаем
-        mk(8, date="2020-01-01", mid="OLD_DONE"),          # старый завершённый — отсекаем
+        mk(8, offset_hours=-200, date="2020-01-01", mid="OLD_DONE"),  # старый завершённый — отсекаем
         mk(6, offset_hours=-3, date="2000-01-01",
            home="Côte d'Ivoire", away="Norway", mid="LIVE"),  # идёт — ОБЯЗАН остаться
     ], NOW))),
@@ -105,9 +105,18 @@ inv.case(
 ph = suite("Фазы: ended/upcoming фильтруются корректно")
 ph.case("завершённый сегодня — в выдаче (свежий результат)",
         lambda: ok("E" in ids(server.filter_live_view([mk(8, offset_hours=-2, mid="E")], NOW))))
-ph.case("завершённый давно (не сегодня/вчера) — НЕ в выдаче",
+ph.case("завершённый давно (kickoff >48ч назад) — НЕ в выдаче",
         lambda: ok("E" not in ids(server.filter_live_view(
             [mk(8, offset_hours=-200, date="2025-01-01", mid="E")], NOW))))
+# РЕГРЕССИЯ: баг France–Sweden. Матч завершён недавно (kickoff 2ч назад), но его
+# строка-дата = «завтра по UTC» (kickoff 00:00 МСК = 21:00 UTC «вчера»). Старый
+# фильтр по `date in (today,yesterday)` его ронял → «появлялся и исчезал». Теперь
+# держим по времени старта → матч в выдаче (и персистится, не пропадает).
+ph.case("завершён недавно, но date-строка = завтра по UTC (баг France–Sweden) — В выдаче",
+        lambda: ok("FS" in ids(server.filter_live_view(
+            [mk(8, offset_hours=-2, date="2099-12-31", mid="FS")], NOW))))
+ph.case("краевой: завершён ровно на границе 48ч — ещё в выдаче",
+        lambda: ok("B" in ids(server.filter_live_view([mk(8, offset_hours=-47, mid="B")], NOW))))
 ph.case("upcoming в пределах горизонта (через 2ч) — в выдаче",
         lambda: ok("U" in ids(server.filter_live_view([mk(2, offset_hours=2, mid="U")], NOW))))
 ph.case("upcoming за горизонтом (через 200ч) — НЕ в выдаче",
