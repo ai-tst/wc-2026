@@ -53,3 +53,13 @@ export function setFixturesLoaded(v) { fixturesLoaded = v; }
 // true, когда провайдер данных лёг и матчи отданы из фолбэк-кэша (неполные)
 export let matchesDegraded = false;
 export function setMatchesDegraded(v) { matchesDegraded = v; }
+
+// OTS-54: полный набор матчей текущего раунда плей-офф (для кнопки «Показать все»).
+// complete=true только если известна ВСЯ сетка раунда — иначе кнопку не показываем.
+export let roundExtra = { round: null, label: null, complete: false, matches: [] };
+export function setRoundExtra(v) {
+  roundExtra = v && v.complete ? v : { round: null, label: null, complete: false, matches: [] };
+}
+// Тоггл «Показать все»: по умолчанию свёрнуто, полный список — по желанию.
+export let showAllRound = false;
+export function setShowAllRound(v) { showAllRound = !!v; }

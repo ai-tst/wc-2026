@@ -2,7 +2,7 @@ import {
   state, currentUser, setCurrentUser,
   activeMatches, fixturesLoaded,
   setFixturesLoaded, setActiveMatches,
-  setMatchesDegraded,
+  setMatchesDegraded, setRoundExtra,
   emptyOutrights, updateStateFromServer,
 } from "./store.js";
 import { $ } from "./utils.js";
@@ -17,7 +17,7 @@ import { renderScoreboard } from "./scoreboard.js";
 import { renderStats } from "./stats.js";
 import { renderBracket } from "./bracket.js";
 import { setupCasino } from "./casino.js";
-import { fetchMatchesFromSportDb } from "./api.js";
+import { fetchMatchesFromSportDb, fetchRoundMatches } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
   apiSetDesignVersion,
@@ -68,6 +68,20 @@ async function loadMatches(dateOverride) {
   renderStats();
   scheduleRefreshIfLive();
   applyMatchDeepLink();
+  loadRoundExtra();   // OTS-54: фоном тянем полный раунд для кнопки «Показать все»
+}
+
+// OTS-54: подгружаем полный набор матчей текущего раунда плей-офф в фоне.
+// Не блокирует основной список — когда придёт, до-рендерим кнопку и доску.
+async function loadRoundExtra() {
+  try {
+    setRoundExtra(await fetchRoundMatches());
+  } catch (err) {
+    console.warn("[API] round matches load failed:", err);
+    setRoundExtra(null);
+  }
+  renderMatches();
+  renderBracket();
 }
 
 // ── Deep link (?match=<id>) — прыжок прямо на карточку ставки (пинг из бота) ────

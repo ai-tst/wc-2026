@@ -1,4 +1,4 @@
-import { state, currentUser, activeMatches, matchesDegraded } from "./store.js";
+import { state, currentUser, activeMatches, matchesDegraded, roundExtra, showAllRound, setShowAllRound } from "./store.js";
 import { $, escapeHtml } from "./utils.js";
 import { getTeamPlayers } from "./api.js";
 import { renderScoreboard } from "./scoreboard.js";
@@ -267,12 +267,56 @@ export function renderMatches() {
         isV2() ? createMatchRowV2(m) : createMatchRow(m, false)
       ));
     }
+    // OTS-54: кнопка «Показать все» — раскрыть весь раунд плей-офф (то, что вне фильтра).
+    if (isV2()) renderShowAllRound(container, visibleMatches);
   }
 
   if (actualContainer) {
     actualContainer.innerHTML = "";
     visibleMatches.forEach((m) => actualContainer.appendChild(createMatchRow(m, true)));
   }
+}
+
+// OTS-54: «Показать все» — раскрыть весь текущий раунд плей-офф (напр. всю 1/16).
+// Кнопку рисуем ТОЛЬКО когда известен ВЕСЬ набор раунда (гейт CEO: roundExtra.complete)
+// и есть матчи вне текущего фильтра. Тоггл: по умолчанию свёрнуто, раскрытие по желанию.
+function renderShowAllRound(container, visibleMatches) {
+  container.querySelector(".round-extra-wrap")?.remove();
+  if (!roundExtra.complete || !roundExtra.matches.length) return;
+
+  const visibleIds = new Set(visibleMatches.map((m) => String(m.id)));
+  const extra = roundExtra.matches
+    .filter((m) => !visibleIds.has(String(m.id)))
+    .sort((a, b) => String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw)));
+  if (!extra.length) return;   // весь раунд уже в фильтре — кнопка не нужна
+
+  const wrap = document.createElement("div");
+  wrap.className = "round-extra-wrap";
+
+  const label = roundExtra.label || "раунд";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "show-all-round-btn" + (showAllRound ? " show-all-round-btn--on" : "");
+  btn.setAttribute("aria-expanded", showAllRound ? "true" : "false");
+  btn.innerHTML = showAllRound
+    ? `Свернуть <span class="sarb-tag">${escapeHtml(label)}</span>`
+    : `Показать все <span class="sarb-tag">${escapeHtml(label)} · +${extra.length}</span>`;
+  btn.addEventListener("click", () => {
+    setShowAllRound(!showAllRound);
+    renderShowAllRound(container, visibleMatches);
+  });
+  wrap.appendChild(btn);
+
+  if (showAllRound) {
+    const list = document.createElement("div");
+    list.className = "round-extra-list";
+    // Завершённые матчи тоже видны (полнота картины раунда), но createMatchRowV2
+    // сам делает их нередактируемыми — ставить на закрытое нельзя.
+    extra.forEach((m) => list.appendChild(createMatchRowV2(m)));
+    wrap.appendChild(list);
+  }
+
+  container.appendChild(wrap);
 }
 
 export function createMatchRow(match, isActual) {

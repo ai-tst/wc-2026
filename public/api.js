@@ -14,6 +14,14 @@ export async function fetchMatchesFromSportDb(dateOverride) {
   };
 }
 
+// OTS-54: полный набор матчей текущего раунда плей-офф (для кнопки «Показать все»).
+// Бэк отдаёт complete=false (и пустой matches), если вся сетка раунда ещё не известна.
+export async function fetchRoundMatches() {
+  const res = await fetch("/api/matches/round");
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return await res.json();
+}
+
 export async function getTeamPlayers(teamId) {
   if (teamCache[teamId]) return teamCache[teamId];
   const res = await fetch(`/api/team/${teamId}`);

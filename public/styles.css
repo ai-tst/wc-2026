@@ -2748,3 +2748,47 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
     animation: none;
   }
 }
+
+/* ── OTS-54: «Показать все» — раскрытие полного раунда плей-офф под списком ─────
+   Кнопка-тоггл (вторичный, не зелёный CTA — green --accent точечно) раскрывает
+   матчи раунда, которых нет в текущем фильтре. По умолчанию свёрнуто. */
+.round-extra-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.show-all-round-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 16px;
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--transition-fast),
+              color var(--transition-fast),
+              background var(--transition-fast);
+}
+.show-all-round-btn:hover { border-color: var(--accent); color: var(--accent); }
+.show-all-round-btn--on   { border-color: var(--accent); background: var(--accent-soft); }
+.sarb-tag {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.round-extra-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

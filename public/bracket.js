@@ -1,10 +1,21 @@
 import { $, escapeHtml } from "./utils.js";
-import { activeMatches, currentUser } from "./store.js";
+import { activeMatches, currentUser, roundExtra } from "./store.js";
 import { withFlag } from "./matches.js";
 import {
   classifyKnockoutRound, STAGE_POINTS,
   resolveActualResult, matchPointsFor, calculateBracketBonus,
 } from "./points.js";
+
+// OTS-54: на доске показываем ВЕСЬ текущий раунд, а не только матчи из фильтра.
+// Мерджим полный набор раунда (roundExtra) к activeMatches, дедуп по id.
+function bracketMatches() {
+  const extra = (roundExtra?.complete && roundExtra.matches) || [];
+  if (!extra.length) return activeMatches;
+  const seen = new Set(activeMatches.map((m) => String(m.id)));
+  const merged = activeMatches.slice();
+  for (const m of extra) if (!seen.has(String(m.id))) merged.push(m);
+  return merged;
+}
 
 const teamsEq = (a, b) => Boolean(a) && Boolean(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
 function sideOf(match, teamName) {
@@ -166,7 +177,7 @@ function originR32Slot(name, pos, teamSlot) {
 
 // matchId → slotId для всех сыгранных/назначенных матчей плей-офф
 function buildSlotAssignment(pos) {
-  const ko = activeMatches.filter((m) => classifyKnockoutRound(m.group));
+  const ko = bracketMatches().filter((m) => classifyKnockoutRound(m.group));
   const matchSlot = new Map();
   const teamSlot = new Map();
   // сначала R32 — он даёт привязку команда→слот (нужно для третьих мест дальше)
@@ -275,13 +286,14 @@ export function renderBracket() {
   const root = $("bracket-content");
   if (!root) return;
 
-  const koCount = activeMatches.filter((m) => classifyKnockoutRound(m.group)).length;
+  const allMatches = bracketMatches();
+  const koCount = allMatches.filter((m) => classifyKnockoutRound(m.group)).length;
   const myBonus = currentUser ? calculateBracketBonus(currentUser) : 0;
 
   const pos = groupPositions();
   const matchSlot = buildSlotAssignment(pos);
   const slotToMatch = new Map();
-  for (const m of activeMatches) {
+  for (const m of allMatches) {
     const s = matchSlot.get(m.id);
     if (s != null) slotToMatch.set(s, m);
   }
