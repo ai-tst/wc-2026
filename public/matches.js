@@ -231,6 +231,10 @@ export function renderMatches() {
   const container       = $("matches-list");
   const actualContainer = $("actual-matches-list");
 
+  // OTS-56: идущие матчи рендерим в отдельной секции «Лайв». В v2 они исключены
+  // из «Матчи сёдня» (только upcoming) и без этой секции выпадали из UI совсем.
+  renderLiveMatches();
+
   // Плашка «данные неполные», когда провайдер sstats лёг (фолбэк-кэш).
   const degradedBadge = $("matches-degraded-badge");
   if (degradedBadge) degradedBadge.classList.toggle("hidden", !matchesDegraded);
@@ -271,6 +275,58 @@ export function renderMatches() {
     actualContainer.innerHTML = "";
     visibleMatches.forEach((m) => actualContainer.appendChild(createMatchRow(m, true)));
   }
+}
+
+// ── OTS-56: секция «Лайв» — идущие прямо сейчас матчи ─────────────────────────
+// Гарантия: матч в фазе live (status 3–7, вкл. перерыв/доп.время/пенальти, плюс
+// OTS-47 «ждём исход») ВСЕГДА виден здесь в реальном времени. Бэкенд держит
+// инвариант «идёт ⇒ в /api/matches» (filter_live_view + tests/test_live.py), а
+// эта секция — его UI-проекция. Автообновление каждые 60с (app.scheduleRefreshIfLive).
+const LIVE_STATUS_RU = { 3: "1-й тайм", 4: "перерыв", 5: "2-й тайм", 6: "доп. время", 7: "пенальти" };
+
+function liveStatusLabel(match) {
+  return LIVE_STATUS_RU[Number(match.status)] || "идёт";
+}
+
+function createLiveCard(match) {
+  const moscow    = moscowLabel(match.dateTimeRaw);
+  const typeBits  = [match.league, match.group].filter(Boolean).join(" · ");
+  const awaiting  = isAwaitingOutcome(match);
+  const badge     = awaiting
+    ? `⏳ ждём исход (доп. время / пенальти)`
+    : `● LIVE · ${escapeHtml(liveStatusLabel(match))}`;
+  const hs = match.homeScore ?? 0, as_ = match.awayScore ?? 0;
+
+  const row = document.createElement("div");
+  row.className = "match-row v2mc v2mc--live";
+  row.id = "match-" + match.id;   // OTS-41: цель диплинка из бота (?match=<id>)
+  const meta = [typeBits, moscow.date].filter(Boolean).join(" · ");
+  row.innerHTML = `
+    <div class="v2rc-hero">
+      <div class="v2rc-type">${escapeHtml(meta)} <span class="v2mc-live">${badge}</span></div>
+      <div class="v2rc-scoreline">
+        <span class="v2rc-t v2rc-t--r">${withFlag(match.home)}</span>
+        <span class="v2mc-score"><span class="v2mc-live-score">${escapeHtml(String(hs))} : ${escapeHtml(String(as_))}</span></span>
+        <span class="v2rc-t">${withFlag(match.away)}</span>
+      </div>
+    </div>`;
+  return row;
+}
+
+export function renderLiveMatches() {
+  const section   = $("live-section");
+  const container = $("live-matches-list");
+  if (!container) return;
+  const live = activeMatches
+    .filter((m) => getMatchPhase(m) === "live")
+    .sort((a, b) => String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw)));
+  container.innerHTML = "";
+  if (!live.length) {
+    section?.classList.add("hidden");
+    return;
+  }
+  section?.classList.remove("hidden");
+  live.forEach((m) => container.appendChild(createLiveCard(m)));
 }
 
 // OTS-54: «Показать все будущие матчи» — раскрыть все предстоящие матчи вне фильтра.

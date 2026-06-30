@@ -1965,6 +1965,15 @@ body.design-v2 .v2mc .v2rc-t .team-flag { width: 20px; height: 14px; }
   body.design-v2 .v2mc .v2rc-t .team-flag { width: 18px; height: 13px; }
 }
 .v2mc-live { color: #ff5d6c; font-weight: 700; }
+
+/* OTS-56: секция «Лайв» — идущие прямо сейчас матчи */
+.card--live { border-color: rgba(255, 93, 108, 0.45); box-shadow: 0 0 0 1px rgba(255, 93, 108, 0.18); }
+.card--live h2 { color: #ff5d6c; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.card--live h2::first-letter { animation: live-pulse 1.4s ease-in-out infinite; }
+.card--live .live-sub { font-size: 12px; font-weight: 400; color: var(--muted); }
+.v2mc--live { background: rgba(255, 93, 108, 0.06); }
+.v2mc-live-score { font-size: 22px; font-weight: 800; letter-spacing: 1px; white-space: nowrap; }
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 .v2mc-odds { display: flex; justify-content: center; gap: 8px; margin-top: 2px; }
 .v2mc-odds span {
   background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(168, 163, 212, 0.2);
