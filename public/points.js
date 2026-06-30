@@ -134,6 +134,28 @@ export function isMatchResultFinal(match) {
   return Boolean(state.actualMatches?.[match.id]?.winner); // ничья → нужен явный исход (пенальти) от админа
 }
 
+// Фаза матча для UI: 'upcoming' | 'live' | 'ended'.
+// OTS-47: «live» = матч ИДЁТ (status 3–7) ИЛИ отыгран, но исход ещё не финален
+// (ничья плей-офф, ждём пенальти). «ended» только когда результат финален.
+export function getMatchPhase(match) {
+  const s = Number(match.status);
+  if (!s || s <= 2) return "upcoming";
+  if (!isMatchResultFinal(match)) return "live";
+  return "ended";
+}
+
+// OTS-56: порядок «Матчи сёдня» — СНАЧАЛА идущие (live), затем предстоящие.
+// ИНВАРИАНТ (его и проверяет tests/test_today_matches.mjs): любой идущий матч
+// ВСЕГДА попадает в этот список и стоит выше upcoming. Раньше тут был только
+// upcoming → идущий матч выпадал из UI; тест на это не ловил, потому что проверял
+// лишь бэкенд-выдачу, а не то, что реально рендерится в «Матчи сёдня».
+export function buildTodayMatches(matches) {
+  const byTime = (a, b) => String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw));
+  const live     = (matches || []).filter((m) => getMatchPhase(m) === "live").sort(byTime);
+  const upcoming = (matches || []).filter((m) => getMatchPhase(m) === "upcoming").sort(byTime);
+  return [...live, ...upcoming];
+}
+
 // ── Playoff bracket ───────────────────────────────────────────────────────────
 // Knockout round detected from the match's `group` label (sstats `roundName`).
 // Order matters: "quarter-final"/"semi-final" both contain "final", so those are

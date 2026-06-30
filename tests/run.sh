@@ -24,6 +24,8 @@ run "Python: лайв-инвариант «идёт ⇒ в лайве» (unit, O
     env WC2026_TESTING=1 "$PY" tests/test_live.py
 run "JS: клиентский расчёт очков (unit, паритет)" \
     node tests/test_points.mjs
+run "JS: «Матчи сёдня» — идущий матч виден и сверху (unit, OTS-56)" \
+    node tests/test_today_matches.mjs
 
 if [ "${1:-}" != "--logic" ]; then
   run "HTTP smoke по живому серверу (${BASE_URL:-http://127.0.0.1:8000})" \
