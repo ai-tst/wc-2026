@@ -20,6 +20,8 @@ run() { echo; echo "▶ $1"; shift; "$@" || fail=1; }
 
 run "Python: расчёт очков и матчинг (unit)" \
     env WC2026_TESTING=1 "$PY" tests/test_scoring.py
+run "Python: лайв-инвариант «идёт ⇒ в лайве» (unit, OTS-56)" \
+    env WC2026_TESTING=1 "$PY" tests/test_live.py
 run "JS: клиентский расчёт очков (unit, паритет)" \
     node tests/test_points.mjs
 

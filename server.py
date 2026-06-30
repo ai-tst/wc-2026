@@ -1915,6 +1915,93 @@ def _matches_resp(data):
     return r
 
 
+# ── Status enum (sstats) + лайв-инвариант (OTS-56) ───────────────────────────
+# Провайдер sstats отдаёт числовой статус матча:
+#   1  TBD/не назначен (наш дефолт)        ┐ ещё НЕ начался → "upcoming"
+#   2  Not Started (запланирован)          ┘
+#   3  First Half          ┐
+#   4  Half Time (перерыв) │
+#   5  Second Half         │  матч ИДЁТ прямо сейчас → "live"
+#   6  Extra Time (доп.)   │  (вкл. перерыв, доп. время, серию пенальти)
+#   7  Penalty Shootout    ┘
+#   8  Finished            ┐
+#   9  Finished AET        │  матч ЗАВЕРШЁН → "ended"
+#   10 Finished After Pen. ┘
+# ИНВАРИАНТ OTS-56: матч ИДЁТ ⇒ он обязан быть в лайв-выдаче. is_live_status() —
+# единственный источник правды о «матч идёт», и в filter_live_view() лайв-ветка
+# проверяется ПЕРВОЙ, до любых фильтров по горизонту/дате/названиям команд, чтобы
+# никакой матч физически не мог выпасть из лайва.
+_LIVE_STATUS_MIN = 3
+_LIVE_STATUS_MAX = 7
+
+
+def is_live_status(status):
+    """True, если матч сейчас ИДЁТ (включая перерыв, доп. время, пенальти)."""
+    try:
+        return _LIVE_STATUS_MIN <= int(status) <= _LIVE_STATUS_MAX
+    except (TypeError, ValueError):
+        return False
+
+
+def is_ended_status(status):
+    """True, если матч ЗАВЕРШЁН (основное/доп./пенальти отыграны)."""
+    try:
+        return int(status) >= 8
+    except (TypeError, ValueError):
+        return False
+
+
+def filter_live_view(raw_matches, now_utc, horizon=_OPEN_HORIZON):
+    """Отбор матчей для живой выдачи /api/matches из сырого списка провайдера.
+
+    Раскладка по фазам:
+      • ИДЁТ (is_live_status)   — ВСЕГДА в выдаче. Без оглядки на горизонт ставок,
+        дату и написание названий команд. Это и есть инвариант OTS-56.
+      • ЗАВЕРШЁН (is_ended_status) — оставляем, если стартовал сегодня/вчера (UTC);
+        матч со стартом ~23:00 UTC дня N появляется в списке дня N+1 с date=N.
+      • UPCOMING                — только в пределах горизонта ставок.
+    """
+    today_str     = now_utc.strftime("%Y-%m-%d")
+    yesterday_str = (now_utc - timedelta(days=1)).strftime("%Y-%m-%d")
+    cutoff_utc    = now_utc + horizon
+    out = []
+    for m in raw_matches:
+        status = m.get("status", 1)
+        if is_live_status(status):              # ИДЁТ — всегда в лайве (инвариант)
+            out.append(m)
+            continue
+        if is_ended_status(status):            # завершён — только свежий
+            if m.get("date") in (today_str, yesterday_str):
+                out.append(m)
+            continue
+        try:                                   # upcoming — в горизонте ставок
+            dt = datetime.fromisoformat(m["dateTimeRaw"].replace("Z", "+00:00"))
+            if dt <= cutoff_utc:
+                out.append(m)
+        except Exception:
+            out.append(m)                      # без читаемого kickoff — не теряем
+    return out
+
+
+def _cache_has_stale_kickoff(data, now_utc):
+    """True, если в кэше есть матч, помеченный как upcoming (status<=2), но чей
+    kickoff уже наступил. Значит он прямо сейчас должен стать live — кэш устарел,
+    надо пере-фетчить, иначе «только что начавшийся» матч до CACHE_TTL висит в
+    upcoming, а не в лайве (нарушение краевого случая OTS-56)."""
+    if not data:
+        return False
+    for m in data:
+        try:
+            if int(m.get("status", 1)) > 2:
+                continue
+            dt = datetime.fromisoformat(m["dateTimeRaw"].replace("Z", "+00:00"))
+            if dt <= now_utc:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 @app.route("/api/matches")
 def matches():
     try:
@@ -1922,10 +2009,15 @@ def matches():
         now_utc       = datetime.now(timezone.utc)
         is_live_view  = not date_override
 
-        # Return in-memory cache if fresh (live view only, not test date override)
+        # Return in-memory cache if fresh (live view only, not test date override).
+        # OTS-56: но если в кэше висит матч, чей kickoff уже наступил (должен быть
+        # live, а помечен upcoming) — кэш игнорируем и фетчим заново, чтобы
+        # «только что начавшийся» матч сразу попал в лайв, а не ждал TTL.
         if is_live_view:
             cached = CACHE["matches"]
-            if cached["data"] is not None and (now_utc.timestamp() - cached["timestamp"]) < CACHE_TTL:
+            if (cached["data"] is not None
+                    and (now_utc.timestamp() - cached["timestamp"]) < CACHE_TTL
+                    and not _cache_has_stale_kickoff(cached["data"], now_utc)):
                 return _matches_resp(cached["data"])
 
         # ── Fetch from sports API ────────────────────────────────────────────
@@ -1934,47 +2026,34 @@ def matches():
             raw_matches = [m for m in _fetch_matches_for_date(date_override)
                            if m["date"] == date_override]
         else:
-            # Live mode: fetch today + tomorrow (UTC) to cover full 24-hour window
+            # Live mode: fetch yesterday + today + tomorrow (UTC). OTS-56: добавлен
+            # yesterday — провайдер listает матч по ЕГО локальной дате (+03), и
+            # «ночной» лайв-матч мог листаться только под вчерашней датой и так
+            # выпадать из фетча. Берём 3 дня — ни один идущий матч не пролетит мимо.
             today_str     = now_utc.strftime("%Y-%m-%d")
             yesterday_str = (now_utc - timedelta(days=1)).strftime("%Y-%m-%d")
             tomorrow_str  = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
             seen, raw_matches = set(), []
-            for m in _fetch_matches_for_date(today_str) + _fetch_matches_for_date(tomorrow_str):
-                if m["id"] not in seen:
-                    seen.add(m["id"])
-                    raw_matches.append(m)
+            for d in (yesterday_str, today_str, tomorrow_str):
+                for m in _fetch_matches_for_date(d):
+                    if m["id"] not in seen:
+                        seen.add(m["id"])
+                        raw_matches.append(m)
 
-            # Keep only matches within the betting horizon (or currently live).
-            # OTS-52: горизонт показа = горизонту «новый матч»-пинга (_OPEN_HORIZON),
-            # иначе матч, про который ушёл пуш (до 30ч до старта), мог не попасть в
-            # выдачу при cutoff=24ч → «алерт есть, а матча нет». Окна обязаны совпадать.
-            cutoff_utc = now_utc + _OPEN_HORIZON
-            filtered = []
-            for m in raw_matches:
-                try:
-                    dt     = datetime.fromisoformat(m["dateTimeRaw"].replace("Z", "+00:00"))
-                    status = int(m.get("status", 1))
-                    if 3 <= status <= 7:          # live — always include
-                        filtered.append(m)
-                    elif status >= 8:              # ended — include if kicked off today or yesterday (UTC)
-                        # Matches starting ~23:00 UTC on day N appear in the API list for day N+1
-                        # but have m["date"] = day N, so we allow both today and yesterday.
-                        if m["date"] in (today_str, yesterday_str):
-                            filtered.append(m)
-                    elif dt <= cutoff_utc:         # upcoming — within next 24 h
-                        filtered.append(m)
-                except Exception:
-                    filtered.append(m)
-            raw_matches = filtered
+            # Keep only matches within the betting horizon (or currently live/freshly
+            # ended). OTS-52: горизонт показа = горизонту «новый матч»-пинга
+            # (_OPEN_HORIZON). OTS-56: вся логика — в filter_live_view(), где лайв
+            # проверяется ПЕРВЫМ (инвариант «идёт ⇒ в лайве»), это покрыто тестом.
+            raw_matches = filter_live_view(raw_matches, now_utc)
 
         log("RAW MATCHES (filtered)", raw_matches)
 
         not_ended = sorted(
-            [m for m in raw_matches if int(m.get("status", 1)) <= 7],
+            [m for m in raw_matches if not is_ended_status(m.get("status", 1))],
             key=lambda m: m["dateTimeRaw"]
         )
         completed = sorted(
-            [m for m in raw_matches if int(m.get("status", 1)) > 7],
+            [m for m in raw_matches if is_ended_status(m.get("status", 1))],
             key=lambda m: m["dateTimeRaw"],
             reverse=True
         )
