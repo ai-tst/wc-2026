@@ -9,8 +9,9 @@ import { openShareCard } from "./share-card.js";
 
 const ERROR_MSG = "Да отсоси ты хуй бля";
 
+// Новый дизайн — единственный, всегда активен.
 function isV2() {
-  return currentUser?.designVersion === "v2";
+  return true;
 }
 
 // Short vibey word shown next to a player's points (for laughs among friends).
@@ -1226,13 +1227,13 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
 
   // OTS-21/47: в плей-офф показываем, кто реально прошёл (в шапке карточки). Для
   // серии пенальти — с авто-подтянутым из API счётом серии («по пенальти 3:4»).
-  const penNote = actual?.penalties === "yes"
-    ? (actual?.penHome != null && actual.penHome !== ""
-        ? ` · по пенальти ${escapeHtml(String(actual.penHome))}:${escapeHtml(String(actual.penAway))}`
-        : " · по пенальти")
-    : "";
+  const hasPenScore = actual?.penalties === "yes" && actual?.penHome != null && actual.penHome !== "";
+  // Явная строка серии под основным счётом — самое заметное место («1:1» → «по пен. 3:4»).
+  const penLineHtml = hasPenScore
+    ? `<div class="v2rc-penline">по пенальти ${escapeHtml(String(actual.penHome))}:${escapeHtml(String(actual.penAway))}</div>`
+    : (actual?.penalties === "yes" ? `<div class="v2rc-penline">по пенальти</div>` : "");
   const advancedHtml = (isPlayoff && actual?.winner)
-    ? `<div class="v2rc-advanced">прошёл дальше: ${withFlag(actual.winner)}${penNote}</div>`
+    ? `<div class="v2rc-advanced">прошёл дальше: ${withFlag(actual.winner)}</div>`
     : "";
 
   const card = document.createElement("div");
@@ -1246,6 +1247,7 @@ function createResultCardV2(match, ratings = {}, viewUser = null, allUsers = [])
         <span class="v2rc-nums">${match.homeScore ?? "?"} : ${match.awayScore ?? "?"}</span>
         <span class="v2rc-t">${withFlag(match.away)}</span>
       </div>
+      ${penLineHtml}
       <div class="v2rc-best">⭐ ${actualBestHtml}</div>
       ${advancedHtml}
     </div>

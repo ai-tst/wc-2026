@@ -250,12 +250,17 @@ function bkMatch(match, slotId) {
     }
   }
 
+  // OTS-47: серия пенальти — счёт серии в скобках у каждой команды (1 (3) — 1 (4)).
+  const hasPen = ended && actual.penalties === "yes" && actual.penHome != null && actual.penHome !== "";
+  const penFor = (sideKey) => hasPen
+    ? ` <span class="bk-pen">(${escapeHtml(String(sideKey === "home" ? actual.penHome : actual.penAway))})</span>`
+    : "";
   const row = (sideKey, name) => {
     const isWinner = ended && aw === sideKey;
     const isMyPick = pw === sideKey;
     return `<div class="bk-team${isWinner ? " bk-team--win" : ""}${isMyPick ? " bk-team--pick" : ""}">
       ${name ? withFlag(name) : '<span class="bk-q">?</span>'}
-      <span class="bk-score">${ended ? escapeHtml(String(sideKey === "home" ? actual.home : actual.away)) : ""}</span>
+      <span class="bk-score">${ended ? escapeHtml(String(sideKey === "home" ? actual.home : actual.away)) : ""}${penFor(sideKey)}</span>
     </div>`;
   };
 

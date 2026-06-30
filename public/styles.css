@@ -614,14 +614,6 @@ button:active {
   flex-shrink: 0;
 }
 
-.design-toggle {
-  font-size: 13px;
-}
-
-@media (max-width: 480px) {
-  .design-toggle { font-size: 12px; padding-inline: 10px; }
-}
-
 .main-header h1 {
   margin: 0 0 4px;
   font-size: clamp(22px, 3vw, 28px);
@@ -1474,12 +1466,6 @@ body.design-v2 .secondary-btn {
   border: 1px solid rgba(168, 163, 212, 0.4);
   box-shadow: none;
 }
-body.design-v2 .design-toggle {
-  background: linear-gradient(135deg, #7c3aed, #db2777);
-  color: #fff;
-  border: none;
-}
-
 /* Inputs */
 body.design-v2 input,
 body.design-v2 .wcs-input {
@@ -2636,6 +2622,13 @@ body.design-v2 .v2mc.match-row--highlight { animation: matchDeepLinkPulse 1.3s e
 /* Результат-карточка плей-офф: кто прошёл + разбивка ставки юзера */
 body.design-v2 .v2rc-advanced { font-size: 12px; color: var(--muted); }
 body.design-v2 .v2rc-advanced .team-flag { vertical-align: middle; }
+/* OTS-47: счёт серии пенальти под основным счётом — вторичная инфа об исходе,
+   тот же muted-токен, что и у соседней строки «прошёл дальше» (не gold=«ты», не зелёный CTA) */
+body.design-v2 .v2rc-penline {
+  font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  color: var(--muted); text-transform: uppercase;
+}
+.bk-pen { font-size: .82em; font-weight: 700; color: var(--muted); }
 
 /* ============================================================
    OTS-43 — «Подсказка от Месси» (AI hint)

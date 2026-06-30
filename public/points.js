@@ -104,6 +104,9 @@ export function resolveActualResult(match) {
       bestPlayer: adminEntry?.bestPlayer || match.autoBestPlayer || "",
       winner: resolveWinner(match, match.homeScore, match.awayScore, adminEntry),
       penalties: adminEntry?.penalties || "",
+      // OTS-47: счёт серии пенальти (авто из API) — для отображения «пен X:Y»
+      penHome: adminEntry?.penHome || "",
+      penAway: adminEntry?.penAway || "",
     };
   }
   if (adminEntry) {
