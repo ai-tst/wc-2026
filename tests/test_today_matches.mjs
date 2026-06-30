@@ -40,7 +40,7 @@ for (const s of [3, 4, 5, 6, 7]) {
 }
 test("status 8 (группа) → ended", () => eq(getMatchPhase(M("a", 8, "2026-06-30T20:00:00+03:00", { homeScore: 1, awayScore: 0 })), "ended"));
 
-group("buildTodayMatches — идущий матч виден и сверху (инвариант OTS-56)");
+group("buildTodayMatches — все активные матчи по дате начала (инвариант OTS-56)");
 
 test("РЕГРЕССИЯ OTS-55: единственный идущий матч ПРИСУТСТВУЕТ в списке", () => {
   // Под старым кодом (только upcoming) тут был бы пустой список — это и был баг.
@@ -48,22 +48,26 @@ test("РЕГРЕССИЯ OTS-55: единственный идущий матч 
   ok(ids(list).includes("LIVE"), "идущий матч пропал из «Матчи сёдня»");
 });
 
-test("идущий матч стоит ВЫШЕ upcoming, даже если upcoming начинается раньше по часам", () => {
+test("ВСЕ активные матчи отсортированы строго по дате начала (kickoff)", () => {
+  state.actualMatches = {};
   const list = buildTodayMatches([
-    M("UP", 2, "2026-06-30T19:00:00+03:00"),   // upcoming, раньше по времени
-    M("LIVE", 5, "2026-06-30T21:00:00+03:00"), // live, позже по времени
+    M("UP_LATE",  2, "2026-07-02T22:00:00+03:00"),                                            // upcoming, позже всех
+    M("LIVE",     5, "2026-06-30T20:00:00+03:00"),                                            // идёт (стартовал в прошлом)
+    M("UP_SOON",  2, "2026-07-01T19:00:00+03:00"),                                            // upcoming, скоро
+    M("PEN",      8, "2026-06-30T18:00:00+03:00", { group: "Round of 32", homeScore: 1, awayScore: 1 }), // «ждём исход», стартовал раньше live
   ]);
-  eq(ids(list), ["LIVE", "UP"]);
+  // отсортировано по dateTimeRaw: PEN(18:00) → LIVE(20:00) → UP_SOON(01.07) → UP_LATE(02.07)
+  eq(ids(list), ["PEN", "LIVE", "UP_SOON", "UP_LATE"]);
 });
 
-test("несколько идущих — отсортированы по времени между собой, затем upcoming", () => {
+test("ничто активное не теряется: live + ждём-исход + upcoming все в списке", () => {
+  state.actualMatches = {};
   const list = buildTodayMatches([
-    M("UP1", 2, "2026-07-01T22:00:00+03:00"),
-    M("LIVE_LATE", 3, "2026-06-30T22:00:00+03:00"),
-    M("LIVE_EARLY", 6, "2026-06-30T20:00:00+03:00"),
-    M("UP0", 2, "2026-07-01T19:00:00+03:00"),
+    M("UP",   2, "2026-07-01T20:00:00+03:00"),
+    M("LIVE", 5, "2026-06-30T20:00:00+03:00"),
+    M("PEN",  8, "2026-06-30T18:00:00+03:00", { group: "Round of 32", homeScore: 2, awayScore: 2 }),
   ]);
-  eq(ids(list), ["LIVE_EARLY", "LIVE_LATE", "UP0", "UP1"]);
+  ok(ids(list).includes("UP") && ids(list).includes("LIVE") && ids(list).includes("PEN"));
 });
 
 test("завершённый матч НЕ попадает в «Матчи сёдня» (он в «Результатах»)", () => {
@@ -75,17 +79,17 @@ test("завершённый матч НЕ попадает в «Матчи сё
   eq(ids(list), ["LIVE", "UP"]);
 });
 
-group("Краевые случаи остаются в лайве (виден в списке)");
+group("Краевые случаи остаются в списке (live-фаза)");
 for (const [s, name] of [[4, "перерыв"], [6, "доп. время"], [7, "пенальти"]]) {
   test(`${name} (status ${s}) — в списке`, () => {
     ok(ids(buildTodayMatches([M("E", s, "2026-06-30T20:00:00+03:00")])).includes("E"));
   });
 }
-test("плей-офф ничья без исхода (status 8, R32, ждём пенальти) — остаётся в списке как live", () => {
+test("«ждём исход» (status 8, R32, ничья, исход не задан) — В СПИСКЕ (правка автора)", () => {
   state.actualMatches = {};   // исход админом не задан
   const m = M("PEN", 8, "2026-06-30T20:00:00+03:00", { group: "Round of 32", homeScore: 1, awayScore: 1 });
   eq(getMatchPhase(m), "live");
-  ok(ids(buildTodayMatches([m])).includes("PEN"));
+  ok(ids(buildTodayMatches([m])).includes("PEN"), "«ждём исход» потерялся из списка");
 });
 test("плей-офф ничья С исходом (winner задан) → ended, уходит из списка", () => {
   const m = M("PEN2", 8, "2026-06-30T20:00:00+03:00", { group: "Round of 32", homeScore: 1, awayScore: 1 });

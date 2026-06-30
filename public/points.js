@@ -144,16 +144,17 @@ export function getMatchPhase(match) {
   return "ended";
 }
 
-// OTS-56: порядок «Матчи сёдня» — СНАЧАЛА идущие (live), затем предстоящие.
-// ИНВАРИАНТ (его и проверяет tests/test_today_matches.mjs): любой идущий матч
-// ВСЕГДА попадает в этот список и стоит выше upcoming. Раньше тут был только
-// upcoming → идущий матч выпадал из UI; тест на это не ловил, потому что проверял
-// лишь бэкенд-выдачу, а не то, что реально рендерится в «Матчи сёдня».
+// OTS-56 (правка автора): «Матчи сёдня» = ВСЕ активные матчи, отсортированные по
+// дате начала. Активный = не завершённый: upcoming + live (идёт) + «ждём исход»
+// (status≥8, но плей-офф-исход ещё не зафиксирован — это тоже live-фаза, OTS-47).
+// Концепция: тут не теряется НИ ОДИН матч — всё, что ещё актуально, видно.
+// Идущие/ждущие исхода матчи стартовали раньше upcoming, поэтому при сортировке
+// по kickoff естественно оказываются выше. ИНВАРИАНТ (tests/test_today_matches.mjs):
+// любой не-завершённый матч ОБЯЗАН быть в этом списке.
 export function buildTodayMatches(matches) {
-  const byTime = (a, b) => String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw));
-  const live     = (matches || []).filter((m) => getMatchPhase(m) === "live").sort(byTime);
-  const upcoming = (matches || []).filter((m) => getMatchPhase(m) === "upcoming").sort(byTime);
-  return [...live, ...upcoming];
+  return (matches || [])
+    .filter((m) => getMatchPhase(m) !== "ended")
+    .sort((a, b) => String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw)));
 }
 
 // ── Playoff bracket ───────────────────────────────────────────────────────────
