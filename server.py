@@ -600,8 +600,17 @@ def _match_link(mid):
     return f"{PUBLIC_BASE_URL}/?match={mid}"
 
 
+_MSK_TZ = timezone(timedelta(hours=3))
+
+
 def _msk(kickoff):
-    return (kickoff + timedelta(hours=3)).strftime("%d.%m %H:%M")
+    # OTS-52: провайдер отдаёт kickoff уже с офсетом (+03:00 = МСК), а раньше тут
+    # слепо прибавлялось 3ч → пуш показывал время на 3ч позже реального (матч 19:00
+    # МСК → «22:00 МСК»). Конвертируем в МСК через таймзону: верно и для UTC, и для
+    # уже-локального времени. Наивный kickoff трактуем как UTC (как и весь код).
+    if kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=timezone.utc)
+    return kickoff.astimezone(_MSK_TZ).strftime("%d.%m %H:%M")
 
 
 def _plural_matches(n):
@@ -1930,8 +1939,11 @@ def matches():
                     seen.add(m["id"])
                     raw_matches.append(m)
 
-            # Keep only matches within the next 24 h window (or currently live)
-            cutoff_utc = now_utc + timedelta(hours=24)
+            # Keep only matches within the betting horizon (or currently live).
+            # OTS-52: горизонт показа = горизонту «новый матч»-пинга (_OPEN_HORIZON),
+            # иначе матч, про который ушёл пуш (до 30ч до старта), мог не попасть в
+            # выдачу при cutoff=24ч → «алерт есть, а матча нет». Окна обязаны совпадать.
+            cutoff_utc = now_utc + _OPEN_HORIZON
             filtered = []
             for m in raw_matches:
                 try:

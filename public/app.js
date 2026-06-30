@@ -80,13 +80,26 @@ function clearMatchDeepLink() {
   history.replaceState(null, "", url.pathname + url.search + url.hash);
 }
 
+function showDeepLinkMiss() {
+  document.querySelector(".deeplink-miss")?.remove();
+  const el = document.createElement("div");
+  el.className = "deeplink-miss";
+  el.textContent = "Этот матч сейчас недоступен для ставки 🤷 Лови остальные ниже";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
 function applyMatchDeepLink() {
   if (!pendingMatchDeepLink) return;
   const el = document.getElementById("match-" + pendingMatchDeepLink);
   if (!el) {
     // Карточки ещё не отрисованы — ждём; сдаёмся, только когда матчи уже загружены
-    // (значит, на этот матч ставки закрыты/он не в списке).
-    if (fixturesLoaded) clearMatchDeepLink();
+    // (значит, на этот матч ставки закрыты/он не в списке). OTS-52: не молчим в
+    // пустоту, а показываем понятную заглушку — пуш вёл на матч, которого тут нет.
+    if (fixturesLoaded) {
+      showDeepLinkMiss();
+      clearMatchDeepLink();
+    }
     return;
   }
   el.scrollIntoView({ behavior: "smooth", block: "center" });
