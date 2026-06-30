@@ -49,8 +49,8 @@ CACHE = {
         "timestamp": 0,
         "degraded": False   # True, когда отдаём фолбэк (провайдер sstats лёг)
     },
-    # OTS-54: полный набор матчей текущего раунда плей-офф (для кнопки «Показать все»)
-    "round": {
+    # OTS-54: все будущие матчи (для кнопки «Показать все будущие матчи»)
+    "upcoming": {
         "data": None,
         "timestamp": 0,
     },
@@ -2123,36 +2123,28 @@ def matches():
         return jsonify({"error": str(e)}), 500
 
 
-# OTS-54: метаданные раундов плей-офф для кнопки «Показать все».
-_ROUND_ORDER    = ["R32", "R16", "QF", "SF", "F"]
-_ROUND_EXPECTED = {"R32": 16, "R16": 8, "QF": 4, "SF": 2, "F": 1}
-_ROUND_LABEL    = {"R32": "1/16", "R16": "1/8", "QF": "1/4", "SF": "1/2", "F": "Финал"}
+@app.route("/api/matches/upcoming")
+def matches_upcoming():
+    """OTS-54: все будущие матчи (ещё не начатые, без результата) с известными
+    командами — для кнопки «Показать все будущие матчи».
 
-
-@app.route("/api/matches/round")
-def matches_round():
-    """OTS-54: полный набор матчей текущего активного раунда плей-офф.
-
-    Кнопка «Показать все» на фронте позволяет пройтись по всей сетке раунда
-    (напр. всей 1/16) за один заход. Но гейт от CEO: показываем «все» ТОЛЬКО
-    если реально известен ВЕСЬ набор пар раунда. Поэтому complete=True лишь
-    когда найдены все ожидаемые матчи раунда с известными командами — иначе
-    отдаём пустой набор, и фронт кнопку не рисует. Лучше не показать, чем
-    вывалить кривой/частичный список.
+    Не привязано к раунду плей-офф (правка CEO: кнопка просто раскрывает ВСЕ
+    предстоящие матчи, а не конкретно 1/16). /api/matches отдаёт лишь горизонт
+    ставок (~30ч) — этот эндпоинт даёт весь хвост расписания. Берём только
+    status<=2 (не начат), строго в будущем по времени, и с известными обеими
+    командами: «TBD»-пару не показываем (лучше не показать, чем вывалить кривой).
     """
-    empty = {"round": None, "label": None, "complete": False, "matches": []}
     now_utc = datetime.now(timezone.utc)
 
-    cached = CACHE["round"]
+    cached = CACHE["upcoming"]
     if cached["data"] is not None and (now_utc.timestamp() - cached["timestamp"]) < CACHE_TTL:
         return jsonify(cached["data"])
 
     try:
-        # Окно дат, покрывающее самый длинный раунд плей-офф (1/16 ~ 7 дней).
-        # Если провайдер моргнул на отдельную дату — пропускаем её, не валим всё;
-        # недостающие матчи просто не дадут собрать полный набор → complete=False.
-        seen, ko = set(), []
-        for off in range(-3, 8):  # today-3 .. today+7
+        # Окно вперёд, чтобы захватить весь хвост расписания с известными парами.
+        # Моргнул провайдер на дату — пропускаем её, остальное всё равно соберётся.
+        seen, ups = set(), []
+        for off in range(-1, 11):  # today-1 .. today+10
             d = (now_utc + timedelta(days=off)).strftime("%Y-%m-%d")
             try:
                 day = _fetch_matches_for_date(d)
@@ -2161,62 +2153,27 @@ def matches_round():
             for m in day:
                 if m["id"] in seen:
                     continue
-                if _classify_knockout(m.get("group")):
-                    seen.add(m["id"])
-                    ko.append(m)
+                if int(m.get("status", 1)) > 2:            # уже начат/сыгран — не будущий
+                    continue
+                if not (m.get("home") and m.get("away")):  # пара ещё не определена
+                    continue
+                try:
+                    dt = datetime.fromisoformat(m["dateTimeRaw"].replace("Z", "+00:00"))
+                    if dt <= now_utc:                      # по времени уже не в будущем
+                        continue
+                except Exception:
+                    pass
+                seen.add(m["id"])
+                ups.append(m)
 
-        by_round = {}
-        for m in ko:
-            by_round.setdefault(_classify_knockout(m.get("group")), []).append(m)
-
-        # Текущий активный раунд = самый ранний (R32→F), где есть НЕзавершённый матч.
-        cur = next(
-            (r for r in _ROUND_ORDER
-             if any(int(x.get("status", 1)) <= 7 for x in by_round.get(r, []))),
-            None,
-        )
-        if not cur:
-            CACHE["round"]["data"] = empty
-            CACHE["round"]["timestamp"] = now_utc.timestamp()
-            return jsonify(empty)
-
-        ms = sorted(by_round.get(cur, []), key=lambda x: x["dateTimeRaw"])
-        # Полный набор: ожидаемое число пар И у каждой известны обе команды.
-        all_named = all(m.get("home") and m.get("away") for m in ms)
-        complete  = all_named and len(ms) >= _ROUND_EXPECTED.get(cur, 999)
-
-        # Харденим анти-чит: завершённые матчи раунда кладём в match_cache, чтобы
-        # save_prediction отбил ставку на уже сыгранный матч (status>=2) даже если
-        # этого матча нет в основной выдаче /api/matches.
-        completed = [m for m in ms if int(m.get("status", 1)) >= 8]
-        if completed:
-            try:
-                db = get_db()
-                for m in completed:
-                    db.execute(
-                        "INSERT INTO match_cache (match_id, match_json, updated_at) "
-                        "VALUES (%s, %s, %s) "
-                        "ON CONFLICT (match_id) DO UPDATE SET "
-                        "match_json=EXCLUDED.match_json, updated_at=EXCLUDED.updated_at",
-                        [m["id"], json.dumps(m), int(time.time() * 1000)]
-                    )
-                db.commit()
-                db.close()
-            except Exception as cache_err:
-                print(f"[round] match_cache persist failed: {cache_err}")
-
-        resp = {
-            "round":    cur,
-            "label":    _ROUND_LABEL.get(cur),
-            "complete": bool(complete),
-            "matches":  ms if complete else [],   # частичный набор не отдаём
-        }
-        CACHE["round"]["data"] = resp
-        CACHE["round"]["timestamp"] = now_utc.timestamp()
+        ups.sort(key=lambda x: x["dateTimeRaw"])
+        resp = {"matches": ups}
+        CACHE["upcoming"]["data"] = resp
+        CACHE["upcoming"]["timestamp"] = now_utc.timestamp()
         return jsonify(resp)
     except Exception as e:
-        print(f"[round] error: {e}")
-        return jsonify(empty)
+        print(f"[upcoming] error: {e}")
+        return jsonify({"matches": []})
 
 
 @app.route("/api/team/<team_id>")

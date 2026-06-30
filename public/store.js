@@ -54,12 +54,10 @@ export function setFixturesLoaded(v) { fixturesLoaded = v; }
 export let matchesDegraded = false;
 export function setMatchesDegraded(v) { matchesDegraded = v; }
 
-// OTS-54: полный набор матчей текущего раунда плей-офф (для кнопки «Показать все»).
-// complete=true только если известна ВСЯ сетка раунда — иначе кнопку не показываем.
-export let roundExtra = { round: null, label: null, complete: false, matches: [] };
-export function setRoundExtra(v) {
-  roundExtra = v && v.complete ? v : { round: null, label: null, complete: false, matches: [] };
-}
-// Тоггл «Показать все»: по умолчанию свёрнуто, полный список — по желанию.
-export let showAllRound = false;
-export function setShowAllRound(v) { showAllRound = !!v; }
+// OTS-54: все будущие матчи (ещё не начатые, без результата) с известными
+// командами — для кнопки «Показать все будущие матчи». Не привязано к раунду.
+export let futureMatches = [];
+export function setFutureMatches(v) { futureMatches = Array.isArray(v) ? v : []; }
+// Тоггл «Показать все будущие матчи»: по умолчанию свёрнуто, список — по желанию.
+export let showAllFuture = false;
+export function setShowAllFuture(v) { showAllFuture = !!v; }

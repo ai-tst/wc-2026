@@ -1,15 +1,15 @@
 import { $, escapeHtml } from "./utils.js";
-import { activeMatches, currentUser, roundExtra } from "./store.js";
+import { activeMatches, currentUser, futureMatches } from "./store.js";
 import { withFlag } from "./matches.js";
 import {
   classifyKnockoutRound, STAGE_POINTS,
   resolveActualResult, matchPointsFor, calculateBracketBonus,
 } from "./points.js";
 
-// OTS-54: на доске показываем ВЕСЬ текущий раунд, а не только матчи из фильтра.
-// Мерджим полный набор раунда (roundExtra) к activeMatches, дедуп по id.
+// OTS-54: на доске показываем все известные будущие матчи, а не только из фильтра.
+// Мерджим все будущие матчи (futureMatches) к activeMatches, дедуп по id.
 function bracketMatches() {
-  const extra = (roundExtra?.complete && roundExtra.matches) || [];
+  const extra = futureMatches || [];
   if (!extra.length) return activeMatches;
   const seen = new Set(activeMatches.map((m) => String(m.id)));
   const merged = activeMatches.slice();

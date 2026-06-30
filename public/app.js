@@ -2,7 +2,7 @@ import {
   state, currentUser, setCurrentUser,
   activeMatches, fixturesLoaded,
   setFixturesLoaded, setActiveMatches,
-  setMatchesDegraded, setRoundExtra,
+  setMatchesDegraded, setFutureMatches,
   emptyOutrights, updateStateFromServer,
 } from "./store.js";
 import { $ } from "./utils.js";
@@ -17,10 +17,9 @@ import { renderScoreboard } from "./scoreboard.js";
 import { renderStats } from "./stats.js";
 import { renderBracket } from "./bracket.js";
 import { setupCasino } from "./casino.js";
-import { fetchMatchesFromSportDb, fetchRoundMatches } from "./api.js";
+import { fetchMatchesFromSportDb, fetchUpcomingMatches } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
-  apiSetDesignVersion,
 } from "./api-client.js";
 
 // ── Mock data ────────────────────────────────────────────────────────────────
@@ -68,17 +67,17 @@ async function loadMatches(dateOverride) {
   renderStats();
   scheduleRefreshIfLive();
   applyMatchDeepLink();
-  loadRoundExtra();   // OTS-54: фоном тянем полный раунд для кнопки «Показать все»
+  loadFutureMatches();   // OTS-54: фоном тянем все будущие матчи для кнопки «Показать все»
 }
 
-// OTS-54: подгружаем полный набор матчей текущего раунда плей-офф в фоне.
-// Не блокирует основной список — когда придёт, до-рендерим кнопку и доску.
-async function loadRoundExtra() {
+// OTS-54: подгружаем все будущие матчи в фоне. Не блокирует основной список —
+// когда придут, до-рендерим кнопку «Показать все будущие матчи» и доску.
+async function loadFutureMatches() {
   try {
-    setRoundExtra(await fetchRoundMatches());
+    setFutureMatches(await fetchUpcomingMatches());
   } catch (err) {
-    console.warn("[API] round matches load failed:", err);
-    setRoundExtra(null);
+    console.warn("[API] upcoming matches load failed:", err);
+    setFutureMatches([]);
   }
   renderMatches();
   renderBracket();

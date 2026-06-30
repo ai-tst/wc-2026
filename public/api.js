@@ -14,12 +14,13 @@ export async function fetchMatchesFromSportDb(dateOverride) {
   };
 }
 
-// OTS-54: полный набор матчей текущего раунда плей-офф (для кнопки «Показать все»).
-// Бэк отдаёт complete=false (и пустой matches), если вся сетка раунда ещё не известна.
-export async function fetchRoundMatches() {
-  const res = await fetch("/api/matches/round");
+// OTS-54: все будущие матчи (ещё не начатые, без результата) с известными
+// командами — для кнопки «Показать все будущие матчи».
+export async function fetchUpcomingMatches() {
+  const res = await fetch("/api/matches/upcoming");
   if (!res.ok) throw new Error("HTTP " + res.status);
-  return await res.json();
+  const data = await res.json();
+  return Array.isArray(data?.matches) ? data.matches : [];
 }
 
 export async function getTeamPlayers(teamId) {
