@@ -529,9 +529,11 @@ export function createMatchRow(match, isActual) {
 
         confirmBtn.disabled = true;
         confirmBtn.textContent = "Сохраняю…";
-        currentUser.matches[match.id] = data;
         try {
           await apiSavePrediction(match.id, data);
+          // Пишем локальный стейт ТОЛЬКО после подтверждения сервером,
+          // иначе при 403 («матч начался») остаётся фантомная ставка.
+          currentUser.matches[match.id] = data;
           if (savedNote) {
             savedNote.className = "bet-saved-note bet-saved-note--on";
             savedNote.textContent = "✓ ставка принята · можно менять";
@@ -545,8 +547,11 @@ export function createMatchRow(match, isActual) {
           }, 2000);
         } catch (err) {
           console.error("Failed to save prediction:", err);
-          const msg = err.message?.includes("начался") ? err.message : "Ошибка, попробуй ещё";
-          confirmBtn.textContent = msg;
+          const started = err.message?.includes("начался");
+          // Заметный сигнал провала: тост + текст на кнопке. Стейт НЕ записан (см. выше),
+          // так что «фантомной» ставки после перезагрузки не будет.
+          showBetError(started ? "⛔ Матч уже начался — ставка не принята" : "Ошибка, попробуй ещё");
+          confirmBtn.textContent = started ? "Матч начался — не принято" : "Ошибка, попробуй ещё";
           confirmBtn.disabled = false;
         }
       });
@@ -860,9 +865,11 @@ function createMatchRowV2(match) {
         if (!valid) { showBetError("Выбери лучшего игрока из выпадающего списка"); playerInput.value = ""; return; }
       }
       confirmBtn.disabled = true; confirmBtn.textContent = "Сохраняю…";
-      currentUser.matches[match.id] = data;
       try {
         await apiSavePrediction(match.id, data);
+        // Пишем локальный стейт ТОЛЬКО после подтверждения сервером,
+        // иначе при 403 («матч начался») остаётся фантомная ставка.
+        currentUser.matches[match.id] = data;
         savedNote.className = "bet-saved-note bet-saved-note--on";
         savedNote.textContent = "✓ ставка принята · можно менять";
         confirmBtn.className = "confirm-bet-btn confirm-bet-btn--saved";
@@ -874,7 +881,11 @@ function createMatchRowV2(match) {
         }, 1500);
       } catch (err) {
         console.error("Failed to save prediction:", err);
-        confirmBtn.textContent = err.message?.includes("начался") ? err.message : "Ошибка, попробуй ещё";
+        const started = err.message?.includes("начался");
+        // Заметный сигнал провала: тост + текст на кнопке. Стейт НЕ записан (см. выше),
+        // так что «фантомной» ставки после перезагрузки не будет.
+        showBetError(started ? "⛔ Матч уже начался — ставка не принята" : "Ошибка, попробуй ещё");
+        confirmBtn.textContent = started ? "Матч начался — не принято" : "Ошибка, попробуй ещё";
         confirmBtn.disabled = false;
       }
     };
