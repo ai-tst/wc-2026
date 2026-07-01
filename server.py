@@ -824,10 +824,11 @@ def _auto_resolve_playoff_winners():
                 st = int(mj.get("status", 0))
             except (TypeError, ValueError):
                 st = 0
-            hs, as_ = mj.get("homeScore"), mj.get("awayScore")
-            is_draw = hs is not None and as_ is not None and str(hs) == str(as_)
-            # серия пенальти = KO-финиш (status>=8) с ничейным осн.+доп. счётом (вкл. status 10)
-            if not (st >= 8 and is_draw):
+            # Реальная серия пенальти ⇔ статус 10 «Finished After Penalty». OTS-64: статус 9
+            # «Finished AET» = победа голом в доп. время (серии НЕ было) — сюда не попадает.
+            # Иначе гол с пенальти в доп. время (событие «Penalty» на elapsed=120) ложно
+            # ловится парсером как удар серии (Бельгия–Сенегал 3:2 → мнимая «серия 1:0»).
+            if st != 10:
                 continue
             if admin.get(mid):           # победитель уже есть (админ или мы) — не трогаем
                 continue
