@@ -246,6 +246,12 @@ export function renderMatches() {
   }
 
   if (container) {
+    // OTS-60: запоминаем раскрытые «Ставки участников», чтобы фоновый ре-рендер
+    // (60с live-refresh) не сворачивал их обратно.
+    const openBetMatchIds = new Set(
+      Array.from(container.querySelectorAll(".match-all-bets--collapsible[open]"))
+        .map((d) => d.dataset.matchId).filter(Boolean)
+    );
     container.innerHTML = "";
     if (!visibleMatches.length) {
       container.innerHTML = isV2()
@@ -258,6 +264,11 @@ export function renderMatches() {
     }
     // OTS-54: кнопка «Показать все будущие матчи» — раскрыть всё, что вне фильтра.
     if (isV2()) renderShowAllFuture(container, visibleMatches);
+    // OTS-60: восстанавливаем раскрытие «Ставок участников» после перестройки строк.
+    openBetMatchIds.forEach((id) => {
+      const d = container.querySelector(`.match-all-bets--collapsible[data-match-id="${id}"]`);
+      if (d) d.open = true;
+    });
   }
 
   if (actualContainer) {
@@ -973,6 +984,7 @@ function createAllBetsSection(match, collapsible = false) {
   if (collapsible) {
     const details = document.createElement("details");
     details.className = "match-all-bets match-all-bets--collapsible";
+    details.dataset.matchId = String(match.id);   // OTS-60: чтобы восстановить раскрытие после ре-рендера
     details.innerHTML =
       `<summary class="all-bets-summary">Ставки участников (${entries.length})</summary>` +
       `<div class="all-bets-body">${rowsHtml}</div>`;

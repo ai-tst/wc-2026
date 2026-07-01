@@ -128,9 +128,33 @@ async function ensureMatchesLoaded() {
   await loadMatches();
 }
 
+// OTS-60: главный механизм «ставка затирается» — фоновый 60с-рефреш при live-матче
+// делает renderMatches() → container.innerHTML="" и перестраивает все строки только
+// из сохранённого стейта, стирая недописанный черновик ставки. Помечаем активность
+// юзера в блоке матчей и откладываем цикл, пока он редактирует.
+let lastBetEditAt = 0;
+["focusin", "input"].forEach((ev) =>
+  document.addEventListener(ev, (e) => {
+    if (e.target?.closest?.("#matches-list")) lastBetEditAt = Date.now();
+  })
+);
+
+function isEditingBet() {
+  const ae = document.activeElement;
+  if (ae && ae.closest?.("#matches-list") &&
+      (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return true;
+  // недавно печатал (в т.ч. кликал в выпадающий список игроков → мог сняться фокус)
+  return Date.now() - lastBetEditAt < 45_000;
+}
+
 function scheduleRefreshIfLive() {
   const hasLive = activeMatches.some((m) => { const s=Number(m.status); return s>=3&&s<=7; });
-  if (hasLive) setTimeout(() => loadMatches(), 60_000);
+  if (!hasLive) return;
+  setTimeout(() => {
+    // Не затираем фоновым ре-рендером то, что юзер сейчас правит — переносим цикл на +60с.
+    if (isEditingBet()) { scheduleRefreshIfLive(); return; }
+    loadMatches();
+  }, 60_000);
 }
 
 function loadMockData() {
