@@ -2307,15 +2307,19 @@ def normalize_match(item):
         def _first(*vals):
             return next((v for v in vals if v is not None), None)
 
+        # OTS-64: homeResult — итоговый счёт с доп. временем (Бельгия 3:2), homeFTResult —
+        # только 90 мин (2:2). Для победы в доп. время нужен ИТОГОВЫЙ, поэтому Result идёт
+        # первым. Для серии пенальти Result == FTResult (ничья, серия в счёт не входит), так
+        # что порядок безопасен — «по пенальти X:Y» по-прежнему рисуется отдельной строкой.
         home_score = _first(
-            item.get("homeFTResult"),
             item.get("homeResult"),
+            item.get("homeFTResult"),
             item.get("homeScore"),
             item.get("homeFullTimeScore"),
         )
         away_score = _first(
-            item.get("awayFTResult"),
             item.get("awayResult"),
+            item.get("awayFTResult"),
             item.get("awayScore"),
             item.get("awayFullTimeScore"),
         )
