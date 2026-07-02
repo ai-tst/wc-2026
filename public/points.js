@@ -1,31 +1,105 @@
 import { state, activeMatches } from "./store.js";
 import { parseDarkHorse } from "./utils.js";
 
+// OTS-73: человеческий матчинг имени игрока. Зеркало _players_match в server.py
+// (golden-тесты сверяют поведение). Засчитываем, если введённое имя однозначно
+// указывает на официального лучшего игрока: полное имя, имя+фамилия, только
+// фамилия (в т.ч. когда официальное имя — испанское с двумя фамилиями, как
+// «Lamine Yamal Nasraoui Ebana» ⟵ «Yamal»), кириллический транслит (Ямал/Ямаль),
+// иной регистр/пробелы/пунктуация, мелкие опечатки. Не засчитываем при
+// неоднозначности внутри состава матча (две одинаковые фамилии → по фамилии нет).
+
+// Кириллица → латиница (частый футбольный транслит). Делаем ДО снятия диакритики.
+const _CYR_MAP = {
+  а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",
+  л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"kh",ц:"ts",
+  ч:"ch",ш:"sh",щ:"shch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya",
+};
+
+// Частицы/суффиксы — не «сильные» токены (сами по себе не решают совпадение).
+const _PARTICLES = new Set([
+  "de","del","da","di","do","dos","das","della","la","le","van","von","der",
+  "den","al","el","bin","ibn","san","st","saint","junior","jnr","jr","the","of",
+]);
+
 function normalizePlayerStr(name) {
-  return name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .trim();
+  let s = (name || "").toLowerCase();
+  s = s.replace(/[а-яё]/g, (c) => (c in _CYR_MAP ? _CYR_MAP[c] : c));
+  s = s.normalize("NFD").replace(/[̀-ͯ]/g, ""); // снять латинскую диакритику
+  s = s.replace(/['’`]/g, "");                             // O'Neil→oneil, N'Golo→ngolo
+  return s.trim();
 }
 
-function playerNamesMatch(a, b) {
-  if (!a || !b) return false;
-  const na = normalizePlayerStr(a);
-  const nb = normalizePlayerStr(b);
-  if (na === nb) return true;
-  const pa = na.split(/\s+/);
-  const pb = nb.split(/\s+/);
-  // Last names must match
-  if (pa[pa.length - 1] !== pb[pb.length - 1]) return false;
-  const fa = pa[0], fb = pb[0];
-  // Same first name + same last name, even if middle names differ
-  // e.g. "Vinicius Junior" matches "Vinicius Jose Paixao de Oliveira Junior"
-  if (fa === fb) return true;
-  // Handle abbreviated first name: "J." matches "Julian"
-  if (fa.endsWith(".") && fb.startsWith(fa.slice(0, -1))) return true;
-  if (fb.endsWith(".") && fa.startsWith(fb.slice(0, -1))) return true;
+function playerTokens(name) {
+  return normalizePlayerStr(name).split(/[^a-z0-9.]+/).filter(Boolean);
+}
+
+function _levenshtein1(a, b) {
+  // true, если правок ≤ 1 (достаточно для «мелких опечаток»)
+  if (a === b) return true;
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (la > lb) i++;            // удаление из a
+    else if (lb > la) j++;       // вставка
+    else { i++; j++; }           // замена
+  }
+  if (i < la || j < lb) edits++; // хвостовой лишний символ
+  return edits <= 1;
+}
+
+function _stripInitial(t) { return t.replace(/\.+$/, ""); }
+function _isStrongTok(t) { const s = _stripInitial(t); return s.length >= 3 && !_PARTICLES.has(s); }
+
+function _tokMatch(x, y) {
+  const xs = _stripInitial(x), ys = _stripInitial(y);
+  if (!xs || !ys) return false;
+  if (xs === ys) return true;
+  // инициал: «J.» ~ «Julian»
+  if (xs.length === 1 && ys.startsWith(xs)) return true;
+  if (ys.length === 1 && xs.startsWith(ys)) return true;
+  // мелкая опечатка (только для достаточно длинных токенов)
+  if (xs.length >= 5 && ys.length >= 5 && _levenshtein1(xs, ys)) return true;
   return false;
+}
+
+function _subsetTokens(A, B) {
+  // каждый токен A находит свою (непереиспользованную) пару в B
+  const used = new Array(B.length).fill(false);
+  for (const a of A) {
+    let hit = -1;
+    for (let j = 0; j < B.length; j++) { if (!used[j] && _tokMatch(a, B[j])) { hit = j; break; } }
+    if (hit < 0) return false;
+    used[hit] = true;
+  }
+  return true;
+}
+
+function _tokensMatch(A, B) {
+  if (!A.length || !B.length) return false;
+  if (A.length === B.length && A.every((t, i) => t === B[i])) return true; // точное равенство
+  if (!(_subsetTokens(A, B) || _subsetTokens(B, A))) return false;
+  // нужен хотя бы один «сильный» общий токен (не инициал, не частица)
+  for (const a of A) for (const b of B) {
+    if (_isStrongTok(a) && _isStrongTok(b) && _tokMatch(a, b)) return true;
+  }
+  return false;
+}
+
+// squad (опционально) — имена игроков матча; если введённое имя подходит к 2+
+// разным игрокам состава, оно неоднозначно и НЕ засчитывается (две одинаковые
+// фамилии в матче → по фамилии не матчим).
+function playerNamesMatch(input, target, squad) {
+  const A = playerTokens(input), B = playerTokens(target);
+  if (!_tokensMatch(A, B)) return false;
+  if (Array.isArray(squad) && squad.length) {
+    let cnt = 0;
+    for (const s of squad) { if (_tokensMatch(A, playerTokens(s))) { if (++cnt >= 2) return false; } }
+  }
+  return true;
 }
 
 export function calculatePointsForMatch(pred, actual) {
@@ -52,7 +126,8 @@ export function calculatePointsForMatch(pred, actual) {
   const exactScore = homePred === homeAct && awayPred === awayAct;
   // actual.bestPlayer can be a string (admin entry) or array (auto-detected, may have ties)
   const targets = Array.isArray(actual.bestPlayer) ? actual.bestPlayer : (actual.bestPlayer ? [actual.bestPlayer] : []);
-  const bestPlayerCorrect = targets.length > 0 && targets.some(t => playerNamesMatch(pred.bestPlayer, t));
+  const squad = Array.isArray(actual.squad) ? actual.squad : [];
+  const bestPlayerCorrect = targets.length > 0 && targets.some(t => playerNamesMatch(pred.bestPlayer, t, squad));
 
   // OTS-30: исход и точный счёт СУММИРУЮТСЯ (точный ⇒ исход тоже верен).
   const g = STAGE_POINTS.group;
@@ -102,6 +177,8 @@ export function resolveActualResult(match) {
       away: String(match.awayScore),
       // admin override → auto-detected from API ratings → empty
       bestPlayer: adminEntry?.bestPlayer || match.autoBestPlayer || "",
+      // OTS-73: состав матча (для отсева неоднозначных совпадений по фамилии)
+      squad: Array.isArray(match.players) ? match.players : [],
       winner: resolveWinner(match, match.homeScore, match.awayScore, adminEntry),
       penalties: adminEntry?.penalties || "",
       // OTS-47: счёт серии пенальти (авто из API) — для отображения «пен X:Y»
@@ -112,6 +189,7 @@ export function resolveActualResult(match) {
   if (adminEntry) {
     return {
       ...adminEntry,
+      squad: Array.isArray(match.players) ? match.players : [],
       winner: resolveWinner(match, adminEntry.home, adminEntry.away, adminEntry),
     };
   }

@@ -57,6 +57,38 @@ players.case("разные имена, та же фамилия = нет", lambd
 players.case("пустая строка = нет", lambda: ok(not pmatch("", "Messi")))
 players.case("обе пустые = нет", lambda: ok(not pmatch("", "")))
 
+# OTS-73: человеческий матчинг (Yamal засчитай)
+h = suite("Человеческий матчинг (OTS-73)")
+h.case("только фамилия (двойная исп.) 'Yamal' ⟵ полное",
+       lambda: ok(pmatch("Yamal", "Lamine Yamal Nasraoui Ebana")))
+h.case("имя+фамилия ⟵ полное",
+       lambda: ok(pmatch("Lamine Yamal", "Lamine Yamal Nasraoui Ebana")))
+h.case("кириллица 'Ямаль' ⟵ полное",
+       lambda: ok(pmatch("Ямаль", "Lamine Yamal Nasraoui Ebana")))
+h.case("кириллица 'Ямал' ⟵ полное",
+       lambda: ok(pmatch("Ямал", "Lamine Yamal Nasraoui Ebana")))
+h.case("кириллица 'Месси' ⟵ 'Lionel Messi'",
+       lambda: ok(pmatch("Месси", "Lionel Messi")))
+h.case("опечатка 'Yamall' ⟵ 'Yamal'",
+       lambda: ok(pmatch("Yamall", "Lamine Yamal Nasraoui Ebana")))
+h.case("только фамилия 'Messi' ⟵ 'Lionel Messi'",
+       lambda: ok(pmatch("messi", "Lionel Messi")))
+h.case("лишние пробелы/регистр",
+       lambda: ok(pmatch("  LAMINE   yamal ", "Lamine Yamal Nasraoui Ebana")))
+h.case("другой игрок 'Pedri' не засчитан",
+       lambda: ok(not pmatch("Pedri", "Lamine Yamal Nasraoui Ebana")))
+h.case("частица 'de' сама по себе — нет",
+       lambda: ok(not pmatch("de", "Marc-Andre ter Stegen")))
+h.case("неоднозначность: две 'Silva' в матче → по фамилии нет",
+       lambda: ok(not pmatch("Silva", "Bernardo Silva",
+                             ["Bernardo Silva", "Thiago Silva", "Rodri"])))
+h.case("та же 'Silva', но полное имя — однозначно, да",
+       lambda: ok(pmatch("Bernardo Silva", "Bernardo Silva",
+                         ["Bernardo Silva", "Thiago Silva", "Rodri"])))
+h.case("фамилия уникальна в составе → да",
+       lambda: ok(pmatch("Yamal", "Lamine Yamal Nasraoui Ebana",
+                         ["Lamine Yamal Nasraoui Ebana", "Pedri", "Cubarsi"])))
+
 # нормализация
 nrm = suite("Нормализация имени (_norm_player)")
 nrm.case("снимает диакритику и регистр", lambda: eq(norm("Mbappé"), "mbappe"))
@@ -140,4 +172,4 @@ po.case("R32 advance задан, бьёт счёт: advance верный, счё
 
 
 if __name__ == "__main__":
-    main(points, edge, players, nrm, ko, stg, po)
+    main(points, edge, players, h, nrm, ko, stg, po)
