@@ -2013,14 +2013,9 @@ body.design-v2 .card--stats { display: block; }
 .stats-summary::-webkit-details-marker { display: none; }
 .stats-summary::before { content: "▶ "; font-size: 12px; }
 .card--stats[open] .stats-summary::before { content: "▼ "; }
-/* v2: итоговые таблицы внутри раздела статистики — плей-офф раскрыта, группа
-   свёрнута; аналитика отделена тонкой линией, без отдельного гигантского заголовка. */
-body.design-v2 .stats-standings { margin-top: 6px; }
-body.design-v2 .stats-standings__label { margin: 0 0 8px; }
-body.design-v2 .stats-analytics {
-  margin-top: 20px; padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
+/* v2: аналитика (Гонка/Стрики/Точность) — единственный контент раздела
+   «Статистика»; турнирная таблица вынесена в отдельную видимую карточку выше. */
+body.design-v2 .stats-analytics { margin-top: 6px; }
 .stats-title { font-weight: 700; margin: 14px 0 4px; }
 .stats-chart { width: 100%; height: auto; display: block; margin: 6px 0 12px; }
 .stats-blurbs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }

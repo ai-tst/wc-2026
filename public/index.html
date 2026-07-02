@@ -148,36 +148,37 @@
             </details>
           </section>
 
-          <details id="stats-section" class="card card--stats">
-            <summary class="stats-summary">📊 Статистика</summary>
+          <!-- Турнирная таблица — плей-офф в фокусе (раскрыта по дефолту),
+               итоговая с учётом группового этапа свёрнута рядом. Видна сразу,
+               не спрятана в свёрнутую «Статистику». -->
+          <section class="card card--standings">
+            <h2>Турнирная таблица</h2>
+            <p class="muted small">🏆 Плей-офф в фокусе — очки только за матчи на вылет, у всех с нуля.</p>
+            <div id="playoff-empty-state" class="playoff-empty hidden">
+              <span class="playoff-empty__emoji" aria-hidden="true">⚽</span>
+              <p class="playoff-empty__text">Плей-офф ещё не стартовал — скоро первые матчи на вылет. Делай ставки и врывайся, пока все на нулях.</p>
+            </div>
+            <div class="scoreboard-table-wrapper">
+              <table class="scoreboard-table">
+                <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
+                <tbody id="scoreboard-playoff-body"></tbody>
+              </table>
+            </div>
 
-            <!-- Итоговые таблицы живут внутри раздела статистики:
-                 плей-офф раскрыта по умолчанию, групповая свёрнута рядом. -->
-            <div class="stats-standings">
-              <p class="muted small stats-standings__label">🏆 Таблица плей-офф</p>
-              <div id="playoff-empty-state" class="playoff-empty hidden">
-                <span class="playoff-empty__emoji" aria-hidden="true">⚽</span>
-                <p class="playoff-empty__text">Плей-офф ещё не стартовал — скоро первые матчи на вылет. Делай ставки и врывайся, пока все на нулях.</p>
-              </div>
+            <details class="scoreboard-group-details">
+              <summary class="scoreboard-group-summary">Итоговая таблица (с учётом группового этапа)</summary>
+              <p class="muted small scoreboard-group-hint">Полный зачёт за весь турнир, групповой этап включён. Свёрнут, чтобы не смущать новичков отставанием.</p>
               <div class="scoreboard-table-wrapper">
                 <table class="scoreboard-table">
                   <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
-                  <tbody id="scoreboard-playoff-body"></tbody>
+                  <tbody id="scoreboard-body"></tbody>
                 </table>
               </div>
+            </details>
+          </section>
 
-              <details class="scoreboard-group-details">
-                <summary class="scoreboard-group-summary">Итоговая таблица (с учётом группового этапа)</summary>
-                <p class="muted small scoreboard-group-hint">Полный зачёт за весь турнир, групповой этап включён. Свёрнут, чтобы не смущать новичков отставанием.</p>
-                <div class="scoreboard-table-wrapper">
-                  <table class="scoreboard-table">
-                    <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
-                    <tbody id="scoreboard-body"></tbody>
-                  </table>
-                </div>
-              </details>
-            </div>
-
+          <details id="stats-section" class="card card--stats">
+            <summary class="stats-summary">📊 Статистика</summary>
             <div id="stats-content" class="stats-analytics"></div>
           </details>
 
