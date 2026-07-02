@@ -150,22 +150,11 @@
 
           <details id="stats-section" class="card card--stats">
             <summary class="stats-summary">📊 Статистика</summary>
-            <div id="stats-content"></div>
-          </details>
 
-          <div class="main-grid">
-            <section class="card">
-              <h2>Матчи сёдня
-                <span id="matches-degraded-badge" class="data-warning hidden" role="status"
-                      title="Источник данных временно недоступен">
-                  <span class="data-warning__dot" aria-hidden="true">●</span> данные неполные
-                </span>
-              </h2>
-              <div id="matches-list" class="matches-list"></div>
-            </section>
-            <section class="card">
-              <h2>Турнирная таблица</h2>
-              <p class="muted small">🏆 Таблица плей-офф</p>
+            <!-- Итоговые таблицы живут внутри раздела статистики:
+                 плей-офф раскрыта по умолчанию, групповая свёрнута рядом. -->
+            <div class="stats-standings">
+              <p class="muted small stats-standings__label">🏆 Таблица плей-офф</p>
               <div id="playoff-empty-state" class="playoff-empty hidden">
                 <span class="playoff-empty__emoji" aria-hidden="true">⚽</span>
                 <p class="playoff-empty__text">Плей-офф ещё не стартовал — скоро первые матчи на вылет. Делай ставки и врывайся, пока все на нулях.</p>
@@ -187,8 +176,20 @@
                   </table>
                 </div>
               </details>
-            </section>
-          </div>
+            </div>
+
+            <div id="stats-content" class="stats-analytics"></div>
+          </details>
+
+          <section class="card">
+            <h2>Матчи сёдня
+              <span id="matches-degraded-badge" class="data-warning hidden" role="status"
+                    title="Источник данных временно недоступен">
+                <span class="data-warning__dot" aria-hidden="true">●</span> данные неполные
+              </span>
+            </h2>
+            <div id="matches-list" class="matches-list"></div>
+          </section>
 
           <section class="card card--results">
             <div class="card-header-row">
