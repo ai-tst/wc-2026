@@ -13,6 +13,7 @@ import {
   renderActualOutrights,  setupAdmin, renderAllOutrights,
 } from "./outrights.js";
 import { renderMatches, renderMatchResults, renderPlayerProfile } from "./matches.js";
+import { shouldPollForLive } from "./points.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { renderStats } from "./stats.js";
 import { renderBracket } from "./bracket.js";
@@ -148,8 +149,10 @@ function isEditingBet() {
 }
 
 function scheduleRefreshIfLive() {
-  const hasLive = activeMatches.some((m) => { const s=Number(m.status); return s>=3&&s<=7; });
-  if (!hasLive) return;
+  // OTS-65: поллим не только когда матч УЖЕ идёт, но и когда вот-вот стартует —
+  // иначе страница, открытая до кикоффа, никогда не перещёлкнет матч в ● LIVE
+  // без ручного F5. Логика — в тестируемой shouldPollForLive() (points.js).
+  if (!shouldPollForLive(activeMatches, Date.now())) return;
   setTimeout(() => {
     // Не затираем фоновым ре-рендером то, что юзер сейчас правит — переносим цикл на +60с.
     if (isEditingBet()) { scheduleRefreshIfLive(); return; }

@@ -9,7 +9,7 @@
 //
 // Запуск:  node tests/test_today_matches.mjs
 
-import { buildTodayMatches, getMatchPhase } from "../public/points.js";
+import { buildTodayMatches, getMatchPhase, shouldPollForLive } from "../public/points.js";
 import { state } from "../public/store.js";
 
 let total = 0, passed = 0;
@@ -98,6 +98,34 @@ test("плей-офф ничья С исходом (winner задан) → ended
   ok(!ids(buildTodayMatches([m])).includes("PEN2"));
   state.actualMatches = {};
 });
+
+group("shouldPollForLive — авто-рефреш ловит переход upcoming→live (OTS-65)");
+{
+  const NOW = new Date("2026-07-02T14:00:00+03:00").getTime();
+  const at = (iso) => new Date(iso).getTime();
+
+  test("идущий матч → поллим", () => {
+    ok(shouldPollForLive([M("L", 5, "2026-07-02T12:00:00+03:00")], NOW));
+  });
+  test("РЕГРЕССИЯ OTS-65: только upcoming, старт скоро (через 10 мин) → ВСЁ РАВНО поллим", () => {
+    // Раньше hasLive=false → таймер не заводился → матч стартовал, а страница не обновлялась.
+    ok(shouldPollForLive([M("U", 2, "2026-07-02T14:10:00+03:00")], NOW), "не поллим перед стартом — ● LIVE не появится сам");
+  });
+  test("upcoming, kickoff уже наступил, апи ещё не перещёлкнул в live → поллим", () => {
+    ok(shouldPollForLive([M("U", 2, "2026-07-02T13:55:00+03:00")], NOW));
+  });
+  test("upcoming далеко (через 3 часа) → НЕ поллим", () => {
+    ok(!shouldPollForLive([M("U", 2, "2026-07-02T17:00:00+03:00")], NOW));
+  });
+  test("зависший upcoming (kickoff 8ч назад) → НЕ поллим вечно", () => {
+    ok(!shouldPollForLive([M("U", 2, "2026-07-02T06:00:00+03:00")], NOW));
+  });
+  test("только завершённые → НЕ поллим", () => {
+    ok(!shouldPollForLive([M("D", 8, "2026-07-02T12:00:00+03:00", { homeScore: 1, awayScore: 0 })], NOW));
+  });
+  test("пусто → НЕ поллим", () => ok(!shouldPollForLive([], NOW)));
+  void at;
+}
 
 console.log(`\n${passed === total ? G : R}${passed}/${total} прошло${X}`);
 process.exit(passed === total ? 0 : 1);
