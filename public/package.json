@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "comment": "public/*.js are browser ES modules (loaded via <script type=module>). This marker lets Node import them as ESM for tests (see ../tests/test_points.mjs)."
+}

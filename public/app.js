@@ -2,6 +2,7 @@ import {
   state, currentUser, setCurrentUser,
   activeMatches, fixturesLoaded,
   setFixturesLoaded, setActiveMatches,
+  setMatchesDegraded, setFutureMatches,
   emptyOutrights, updateStateFromServer,
 } from "./store.js";
 import { $ } from "./utils.js";
@@ -16,10 +17,9 @@ import { renderScoreboard } from "./scoreboard.js";
 import { renderStats } from "./stats.js";
 import { renderBracket } from "./bracket.js";
 import { setupCasino } from "./casino.js";
-import { fetchMatchesFromSportDb } from "./api.js";
+import { fetchMatchesFromSportDb, fetchUpcomingMatches } from "./api.js";
 import {
   apiMe, apiGetPredictions, apiGetOutrights, apiGetLeaderboard,
-  apiSetDesignVersion,
 } from "./api-client.js";
 
 // ── Mock data ────────────────────────────────────────────────────────────────
@@ -54,16 +54,73 @@ async function loadMatches(dateOverride) {
   try {
     const result = await fetchMatchesFromSportDb(dateOverride);
     setActiveMatches(result.matches || []);
+    setMatchesDegraded(!!result.degraded);
     console.info("[API] Loaded fixtures:", result.matches);
   } catch (err) {
     console.error("[API] Failed to load matches:", err);
     setActiveMatches([]);
+    setMatchesDegraded(true);   // совсем не дотянулись до бэка → данные точно неполные
   }
   renderMatches();
   renderMatchResults();
   renderScoreboard();
   renderStats();
   scheduleRefreshIfLive();
+  applyMatchDeepLink();
+  loadFutureMatches();   // OTS-54: фоном тянем все будущие матчи для кнопки «Показать все»
+}
+
+// OTS-54: подгружаем все будущие матчи в фоне. Не блокирует основной список —
+// когда придут, до-рендерим кнопку «Показать все будущие матчи» и доску.
+async function loadFutureMatches() {
+  try {
+    setFutureMatches(await fetchUpcomingMatches());
+  } catch (err) {
+    console.warn("[API] upcoming matches load failed:", err);
+    setFutureMatches([]);
+  }
+  renderMatches();
+  renderBracket();
+}
+
+// ── Deep link (?match=<id>) — прыжок прямо на карточку ставки (пинг из бота) ────
+let pendingMatchDeepLink = new URLSearchParams(location.search).get("match");
+
+function clearMatchDeepLink() {
+  pendingMatchDeepLink = null;
+  const url = new URL(location.href);
+  url.searchParams.delete("match");
+  history.replaceState(null, "", url.pathname + url.search + url.hash);
+}
+
+function showDeepLinkMiss() {
+  document.querySelector(".deeplink-miss")?.remove();
+  const el = document.createElement("div");
+  el.className = "deeplink-miss";
+  el.textContent = "Этот матч сейчас недоступен для ставки 🤷 Лови остальные ниже";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+function applyMatchDeepLink() {
+  if (!pendingMatchDeepLink) return;
+  const el = document.getElementById("match-" + pendingMatchDeepLink);
+  if (!el) {
+    // Карточки ещё не отрисованы — ждём; сдаёмся, только когда матчи уже загружены
+    // (значит, на этот матч ставки закрыты/он не в списке). OTS-52: не молчим в
+    // пустоту, а показываем понятную заглушку — пуш вёл на матч, которого тут нет.
+    if (fixturesLoaded) {
+      showDeepLinkMiss();
+      clearMatchDeepLink();
+    }
+    return;
+  }
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("match-row--highlight");
+  setTimeout(() => el.classList.remove("match-row--highlight"), 2600);
+  const firstInput = el.querySelector("input");
+  if (firstInput && !firstInput.disabled) setTimeout(() => firstInput.focus(), 400);
+  clearMatchDeepLink();
 }
 
 async function ensureMatchesLoaded() {
@@ -71,9 +128,33 @@ async function ensureMatchesLoaded() {
   await loadMatches();
 }
 
+// OTS-60: главный механизм «ставка затирается» — фоновый 60с-рефреш при live-матче
+// делает renderMatches() → container.innerHTML="" и перестраивает все строки только
+// из сохранённого стейта, стирая недописанный черновик ставки. Помечаем активность
+// юзера в блоке матчей и откладываем цикл, пока он редактирует.
+let lastBetEditAt = 0;
+["focusin", "input"].forEach((ev) =>
+  document.addEventListener(ev, (e) => {
+    if (e.target?.closest?.("#matches-list")) lastBetEditAt = Date.now();
+  })
+);
+
+function isEditingBet() {
+  const ae = document.activeElement;
+  if (ae && ae.closest?.("#matches-list") &&
+      (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return true;
+  // недавно печатал (в т.ч. кликал в выпадающий список игроков → мог сняться фокус)
+  return Date.now() - lastBetEditAt < 45_000;
+}
+
 function scheduleRefreshIfLive() {
   const hasLive = activeMatches.some((m) => { const s=Number(m.status); return s>=3&&s<=7; });
-  if (hasLive) setTimeout(() => loadMatches(), 60_000);
+  if (!hasLive) return;
+  setTimeout(() => {
+    // Не затираем фоновым ре-рендером то, что юзер сейчас правит — переносим цикл на +60с.
+    if (isEditingBet()) { scheduleRefreshIfLive(); return; }
+    loadMatches();
+  }, 60_000);
 }
 
 function loadMockData() {
@@ -97,6 +178,7 @@ async function refreshLeaderboard() {
       renderActualOutrights();
       renderAdminPlayers();
     }
+    applyMatchDeepLink();
   } catch (err) {
     console.error("[Leaderboard] Failed to load:", err);
   }
@@ -298,8 +380,8 @@ function setupResultsToggle() {
 function setupPlayerProfile() {
   $("profile-back-btn")?.addEventListener("click", () => showView("view-main"));
 
-  // Event delegation — scoreboard nickname buttons
-  $("scoreboard-body")?.addEventListener("click", async (e) => {
+  // Event delegation — scoreboard nickname buttons (playoff + group tables)
+  async function handleScoreboardClick(e) {
     const btn = e.target.closest("[data-player-nick]");
     if (!btn) return;
     const nick = btn.dataset.playerNick;
@@ -308,5 +390,7 @@ function setupPlayerProfile() {
     container.innerHTML = `<p class="muted small">Загружаю...</p>`;
     showView("view-player-profile");
     await renderPlayerProfile(nick, container);
-  });
+  }
+  $("scoreboard-playoff-body")?.addEventListener("click", handleScoreboardClick);
+  $("scoreboard-body")?.addEventListener("click", handleScoreboardClick);
 }

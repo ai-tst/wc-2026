@@ -40,3 +40,6 @@ export const apiGetLeaderboard = () => get("/api/leaderboard");
 
 // Player ratings for a completed match { playerName: rating }
 export const apiGetMatchRatings = (matchId) => get(`/api/match-ratings/${matchId}`);
+
+// OTS-43 — AI hint from Messi for a match → { hint, cached }
+export const apiMatchHint = (matchId) => post(`/api/match-hint/${matchId}`);

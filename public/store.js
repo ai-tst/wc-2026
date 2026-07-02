@@ -49,3 +49,15 @@ export function setActiveMatches(m) { activeMatches = m; }
 
 export let fixturesLoaded = false;
 export function setFixturesLoaded(v) { fixturesLoaded = v; }
+
+// true, когда провайдер данных лёг и матчи отданы из фолбэк-кэша (неполные)
+export let matchesDegraded = false;
+export function setMatchesDegraded(v) { matchesDegraded = v; }
+
+// OTS-54: все будущие матчи (ещё не начатые, без результата) с известными
+// командами — для кнопки «Показать все будущие матчи». Не привязано к раунду.
+export let futureMatches = [];
+export function setFutureMatches(v) { futureMatches = Array.isArray(v) ? v : []; }
+// Тоггл «Показать все будущие матчи»: по умолчанию свёрнуто, список — по желанию.
+export let showAllFuture = false;
+export function setShowAllFuture(v) { showAllFuture = !!v; }

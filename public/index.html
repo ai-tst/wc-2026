@@ -102,7 +102,7 @@
           </div>
           <div class="main-header__actions">
             <button type="button" id="bracket-btn" class="secondary-btn bracket-btn" title="Турнирная сетка плей-офф">🏆 Плей-офф</button>
-            <button type="button" id="design-toggle-btn" class="secondary-btn design-toggle" title="Переключить старый/новый дизайн">✨ Новый дизайн</button>
+            <a href="https://paperclip.51.250.35.235.sslip.io/OTS/issues" target="_blank" rel="noopener noreferrer" id="feature-request-btn" class="secondary-btn feature-request-btn" title="Закинуть идею или репортнуть баг в бэклог"><span class="frb-icon" aria-hidden="true">💡</span><span class="frb-label">Предложить улучшение</span></a>
             <button type="button" id="logout-btn" class="secondary-btn">Выйти</button>
           </div>
         </header>
@@ -116,6 +116,7 @@
               <button type="button" id="edit-outrights-btn" class="secondary-btn hidden">Edit</button>
             </div>
             <div id="outrights-display" class="outrights-display"></div>
+            <div id="outrights-rules"></div>
             <form id="main-outrights-form" class="outrights-form hidden">
               <div class="form-grid">
                 <div class="form-field-block">
@@ -153,18 +154,38 @@
 
           <div class="main-grid">
             <section class="card">
-              <h2>Матчи сёдня</h2>
-              <p class="muted small scoring-hint">Исход +1, точный счёт +3, лучший игрок +2.</p>
+              <h2>Матчи сёдня
+                <span id="matches-degraded-badge" class="data-warning hidden" role="status"
+                      title="Источник данных временно недоступен">
+                  <span class="data-warning__dot" aria-hidden="true">●</span> данные неполные
+                </span>
+              </h2>
               <div id="matches-list" class="matches-list"></div>
             </section>
             <section class="card">
               <h2>Турнирная таблица</h2>
+              <p class="muted small">🏆 Таблица плей-офф</p>
+              <div id="playoff-empty-state" class="playoff-empty hidden">
+                <span class="playoff-empty__emoji" aria-hidden="true">⚽</span>
+                <p class="playoff-empty__text">Плей-офф ещё не стартовал — скоро первые матчи на вылет. Делай ставки и врывайся, пока все на нулях.</p>
+              </div>
               <div class="scoreboard-table-wrapper">
                 <table class="scoreboard-table">
                   <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
-                  <tbody id="scoreboard-body"></tbody>
+                  <tbody id="scoreboard-playoff-body"></tbody>
                 </table>
               </div>
+
+              <details class="scoreboard-group-details">
+                <summary class="scoreboard-group-summary">Итоговая таблица (с учётом группового этапа)</summary>
+                <p class="muted small scoreboard-group-hint">Полный зачёт за весь турнир, групповой этап включён. Свёрнут, чтобы не смущать новичков отставанием.</p>
+                <div class="scoreboard-table-wrapper">
+                  <table class="scoreboard-table">
+                    <thead><tr><th>#</th><th>Чел</th><th>Очки</th></tr></thead>
+                    <tbody id="scoreboard-body"></tbody>
+                  </table>
+                </div>
+              </details>
             </section>
           </div>
 
@@ -273,6 +294,9 @@
       <img src="donate.png" alt="Donate" class="donate-img" />
       <p class="donate-text">+7-977-265-31-55 ПСБ</p>
     </footer>
+    <a href="https://t.me/otsoswcbot" target="_blank" rel="noopener noreferrer" id="tg-fab" class="tg-fab" title="Анонсы матчей в Telegram — @otsoswcbot" aria-label="Анонсы в Telegram — @otsoswcbot">
+      <svg class="tg-fab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+    </a>
     <script type="module" src="../app.js"></script>
   </body>
 </html>

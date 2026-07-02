@@ -9,11 +9,9 @@ const CASINO_LOGO   = "otsos-casino-logo.webp";
 const MUSIC_SRC     = "casino-music.mp3";
 const REEL_DIGITS   = 8;     // значения 0..7
 const REEL_CYCLES   = 14;    // прокруты алфавита цифр до остановки
-const COIN_CAP      = 150;   // потолок одновременных монет (защита от джанка)
 const COIN_GLYPHS   = ["🪙", "🪙", "🪙", "🪙", "💰", "🟡"];
 
 let casinoOn  = false;
-let coinTimer = null;
 let audioEl   = null;
 let logoEl    = null;
 
@@ -199,76 +197,149 @@ function stopEqualizer() {
 }
 
 // ── Монеты со всех сторон (бока + верхние углы) ───────────────────────────────────
-// На телефонах ливень монет лагает — там его полностью отключаем (всё остальное
-// остаётся: радуга, музыка, слот, заставка).
-function coinsDisabled() {
-  return window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 820;
-}
+// Рендер на ОДНОМ <canvas>-оверлее, а не на 150 fixed-DOM-нодах с drop-shadow.
+// Раньше каждая монета была отдельным fixed-элементом с фильтром тени — браузер
+// перерисовывал их все на каждом кадре скролла → страница лагала. Теперь это один
+// композитный слой: физика (скорость + гравитация) в общем rAF-цикле, глифы заранее
+// прерисованы в спрайты. Работает плавно и на десктопе, и на мобилках.
 function rnd(a, b) { return a + Math.random() * (b - a); }
-function spawnCoin(origin) {
-  if (document.querySelectorAll(".casino-coin").length > COIN_CAP) return;
-  const w = window.innerWidth, h = window.innerHeight;
-  const coin = document.createElement("div");
-  coin.className = "casino-coin";
-  coin.textContent = COIN_GLYPHS[Math.floor(Math.random() * COIN_GLYPHS.length)];
-  coin.style.fontSize = rnd(18, 42) + "px";
-  const rot = (Math.random() < 0.5 ? -1 : 1) * rnd(360, 1000);
 
-  let x0, y0, frames;
+const COIN_GRAVITY = 1100; // px/с²
+function coinPerf() {
+  const mobile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 820;
+  return mobile ? { cap: 60, rate: 22 } : { cap: 140, rate: 38 };
+}
+
+let coinCanvas = null, coinCtx = null, coinRAF = null;
+let coins = [], coinSprites = null;
+let coinSpawning = false, coinSpawnAcc = 0, coinOriginIdx = 0, coinLastTs = 0;
+let coinDpr = 1, coinW = 0, coinH = 0;
+const COIN_ORIGINS = ["left", "left", "right", "right", "tl", "tr"];
+
+// Каждый глиф один раз рисуем в маленький offscreen-канвас (со встроенной тенью),
+// дальше монеты — это дешёвый drawImage с поворотом, без fillText на каждом кадре.
+function buildCoinSprites() {
+  if (coinSprites) return;
+  coinSprites = {};
+  const S = 72;
+  for (const g of [...new Set(COIN_GLYPHS)]) {
+    const c = document.createElement("canvas");
+    c.width = c.height = S;
+    const x = c.getContext("2d");
+    x.font = `${Math.round(S * 0.72)}px serif`;
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.shadowColor = "rgba(0,0,0,0.5)";
+    x.shadowBlur = 4;
+    x.shadowOffsetY = 2;
+    x.fillText(g, S / 2, S / 2);
+    coinSprites[g] = c;
+  }
+}
+
+function resizeCoinCanvas() {
+  if (!coinCanvas) return;
+  coinDpr = Math.min(window.devicePixelRatio || 1, 2);
+  coinW = window.innerWidth;
+  coinH = window.innerHeight;
+  coinCanvas.width  = Math.round(coinW * coinDpr);
+  coinCanvas.height = Math.round(coinH * coinDpr);
+}
+
+function makeCoin(origin) {
+  const w = coinW, h = coinH;
+  const size = rnd(18, 42);
+  const glyph = COIN_GLYPHS[Math.floor(Math.random() * COIN_GLYPHS.length)];
+  let x, y, vx, vy;
   if (origin === "left" || origin === "right") {
     const dir = origin === "left" ? 1 : -1;
-    x0 = origin === "left" ? -30 : w + 30;
-    y0 = rnd(h * 0.2, h * 0.92);
-    const dx = dir * rnd(170, w * 0.55);
-    const up = -rnd(150, 360);
-    const fall = rnd(h * 0.3, h * 0.7);
-    frames = [
-      { transform: "translate(0,0) rotate(0deg)", opacity: 1 },
-      { transform: `translate(${dx * 0.5}px, ${up}px) rotate(${rot * 0.5}deg)`, opacity: 1, offset: 0.4 },
-      { transform: `translate(${dx}px, ${fall}px) rotate(${rot}deg)`, opacity: 0.85 },
-    ];
+    x = origin === "left" ? -20 : w + 20;
+    y = rnd(h * 0.2, h * 0.92);
+    vx = dir * rnd(150, 360);
+    vy = -rnd(220, 520); // подкидывает вверх, дальше гравитация роняет — выходит дуга
   } else { // tl / tr — сыплются из верхних углов вниз
     const dir = origin === "tl" ? 1 : -1;
-    x0 = origin === "tl" ? rnd(-10, w * 0.14) : rnd(w * 0.86, w + 10);
-    y0 = rnd(-70, -10);
-    const dx = dir * rnd(40, w * 0.5);
-    const fall = h + rnd(40, 180);
-    frames = [
-      { transform: "translate(0,0) rotate(0deg)", opacity: 1 },
-      { transform: `translate(${dx}px, ${fall}px) rotate(${rot}deg)`, opacity: 0.9 },
-    ];
+    x = origin === "tl" ? rnd(-10, w * 0.14) : rnd(w * 0.86, w + 10);
+    y = rnd(-70, -10);
+    vx = dir * rnd(20, 180);
+    vy = rnd(60, 180);
   }
-  coin.style.left = x0 + "px";
-  coin.style.top  = y0 + "px";
-  document.body.appendChild(coin);
-  coin.animate(frames, { duration: rnd(1700, 3100), easing: "cubic-bezier(.25,.6,.4,1)" })
-    .onfinish = () => coin.remove();
+  return { x, y, vx, vy, rot: rnd(0, Math.PI * 2),
+           vr: (Math.random() < 0.5 ? -1 : 1) * rnd(2, 9), size, glyph };
+}
+
+function coinFrame(ts) {
+  if (!casinoOn) { coinRAF = null; return; }
+  coinRAF = requestAnimationFrame(coinFrame);
+  let dt = coinLastTs ? (ts - coinLastTs) / 1000 : 0.016;
+  coinLastTs = ts;
+  if (dt > 0.05) dt = 0.05; // после ухода с вкладки кадр не должен «телепортировать» монеты
+
+  const { cap, rate } = coinPerf();
+  if (coinSpawning) {
+    coinSpawnAcc += dt * rate;
+    while (coinSpawnAcc >= 1 && coins.length < cap) {
+      coinSpawnAcc -= 1;
+      coins.push(makeCoin(COIN_ORIGINS[coinOriginIdx++ % COIN_ORIGINS.length]));
+    }
+    if (coinSpawnAcc > 4) coinSpawnAcc = 0; // не копим долг, если упёрлись в потолок
+  }
+
+  const ctx = coinCtx;
+  ctx.setTransform(coinDpr, 0, 0, coinDpr, 0, 0);
+  ctx.clearRect(0, 0, coinW, coinH);
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const p = coins[i];
+    p.vy += COIN_GRAVITY * dt;
+    p.x  += p.vx * dt;
+    p.y  += p.vy * dt;
+    p.rot += p.vr * dt;
+    if (p.y > coinH + 80 || p.x < -120 || p.x > coinW + 120) { coins.splice(i, 1); continue; }
+    const spr = coinSprites[p.glyph];
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.drawImage(spr, -p.size / 2, -p.size / 2, p.size, p.size);
+    ctx.restore();
+  }
+}
+
+function startCoinEngine() {
+  buildCoinSprites();
+  if (!coinCanvas) {
+    coinCanvas = document.createElement("canvas");
+    coinCanvas.className = "casino-coin-canvas";
+    document.body.appendChild(coinCanvas);
+    coinCtx = coinCanvas.getContext("2d");
+    window.addEventListener("resize", resizeCoinCanvas);
+  }
+  resizeCoinCanvas();
+  if (!coinRAF) { coinLastTs = 0; coinRAF = requestAnimationFrame(coinFrame); }
 }
 
 function startCoins() {
-  if (coinTimer || coinsDisabled()) return;
-  // золото рекой: бока (по 2 с каждой стороны) + оба верхних угла, каждые ~170мс
-  coinTimer = setInterval(() => {
-    spawnCoin("left"); spawnCoin("left");
-    spawnCoin("right"); spawnCoin("right");
-    spawnCoin("tl"); spawnCoin("tr");
-  }, 170);
+  startCoinEngine();
+  coinSpawning = true; // золото рекой со всех сторон
 }
-function pauseCoins() {
-  if (coinTimer) { clearInterval(coinTimer); coinTimer = null; } // долетают уже заспавненные
-}
-function resumeCoins() {
-  if (casinoOn && !coinTimer) startCoins();
-}
+function pauseCoins() { coinSpawning = false; } // долетают уже заспавненные
+function resumeCoins() { if (casinoOn) coinSpawning = true; }
 function stopCoins() {
-  pauseCoins();
-  document.querySelectorAll(".casino-coin").forEach((c) => c.remove());
+  coinSpawning = false;
+  coins = [];
+  if (coinRAF) { cancelAnimationFrame(coinRAF); coinRAF = null; }
+  if (coinCanvas) {
+    window.removeEventListener("resize", resizeCoinCanvas);
+    coinCanvas.remove();
+    coinCanvas = null;
+    coinCtx = null;
+  }
 }
 function coinBurst(n = 30) {
-  if (coinsDisabled()) return;
-  const origins = ["left", "right", "tl", "tr"];
-  for (let i = 0; i < n; i++) {
-    setTimeout(() => spawnCoin(origins[i % origins.length]), i * 22);
+  if (!casinoOn) return;
+  startCoinEngine();
+  const { cap } = coinPerf();
+  for (let i = 0; i < n && coins.length < cap; i++) {
+    coins.push(makeCoin(COIN_ORIGINS[i % COIN_ORIGINS.length]));
   }
 }
 

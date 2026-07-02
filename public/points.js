@@ -54,10 +54,12 @@ export function calculatePointsForMatch(pred, actual) {
   const targets = Array.isArray(actual.bestPlayer) ? actual.bestPlayer : (actual.bestPlayer ? [actual.bestPlayer] : []);
   const bestPlayerCorrect = targets.length > 0 && targets.some(t => playerNamesMatch(pred.bestPlayer, t));
 
+  // OTS-30: исход и точный счёт СУММИРУЮТСЯ (точный ⇒ исход тоже верен).
+  const g = STAGE_POINTS.group;
   let total = 0;
-  if (exactScore) total += 3;
-  else if (outcomeCorrect) total += 1;
-  if (bestPlayerCorrect) total += 2;
+  if (outcomeCorrect)    total += g.outcome;
+  if (exactScore)        total += g.exact;
+  if (bestPlayerCorrect) total += g.player;
 
   return { total, outcomeCorrect, exactScore, bestPlayerCorrect };
 }
@@ -78,6 +80,17 @@ export function calculateOutrightsPoints(playerOutrights, actualOutrights) {
   return total;
 }
 
+// OTS-21: кто прошёл дальше в плей-офф. Если счёт (без пенальти) решающий — победитель
+// очевиден; при ничьей (ушли в пенальти) берём явный вердикт админа (actual.winner).
+function resolveWinner(match, homeAct, awayAct, adminEntry) {
+  if (adminEntry?.winner) return adminEntry.winner;
+  const ah = Number(homeAct), aa = Number(awayAct);
+  if (!Number.isNaN(ah) && !Number.isNaN(aa) && ah !== aa) {
+    return ah > aa ? match.home : match.away;
+  }
+  return "";
+}
+
 // Returns the actual result for a match, preferring API-provided scores for ended matches.
 // bestPlayer still comes from admin-entered data (no API source for it).
 export function resolveActualResult(match) {
@@ -89,9 +102,59 @@ export function resolveActualResult(match) {
       away: String(match.awayScore),
       // admin override → auto-detected from API ratings → empty
       bestPlayer: adminEntry?.bestPlayer || match.autoBestPlayer || "",
+      winner: resolveWinner(match, match.homeScore, match.awayScore, adminEntry),
+      penalties: adminEntry?.penalties || "",
+      // OTS-47: счёт серии пенальти (авто из API) — для отображения «пен X:Y»
+      penHome: adminEntry?.penHome || "",
+      penAway: adminEntry?.penAway || "",
     };
   }
-  return adminEntry ?? null;
+  if (adminEntry) {
+    return {
+      ...adminEntry,
+      winner: resolveWinner(match, adminEntry.home, adminEntry.away, adminEntry),
+    };
+  }
+  return null;
+}
+
+// OTS-47: матч показываем как ФИНАЛЬНЫЙ результат только когда исход полностью
+// определён. Провайдер sstats ставит status 8 ("Finished") лишь после основного +
+// доп. времени + пенальти (доп. время — статус 6, серия пенальти — 7, оба держатся
+// как live). НО апи не отдаёт счёт серии пенальти: при ничьей в осн.+доп. FT-счёт
+// остаётся ничейным (напр. 1:1), и кто прошёл дальше — решает админ (OTS-21). Пока
+// этого нет, «результат» неполон (счёт без прошедшего), поэтому не выводим его как
+// финальный — матч висит в актуальных, ждёт исхода. Для группы / решающего счёта
+// статуса 8 достаточно.
+export function isMatchResultFinal(match) {
+  if (Number(match.status) < 8) return false;             // ещё идёт (вкл. доп.время/пенальти)
+  if (!classifyKnockoutRound(match.group)) return true;   // группа — счёт самодостаточен
+  const h = Number(match.homeScore), a = Number(match.awayScore);
+  if (Number.isFinite(h) && Number.isFinite(a) && h !== a) return true;  // решающий счёт → прошедший очевиден
+  return Boolean(state.actualMatches?.[match.id]?.winner); // ничья → нужен явный исход (пенальти) от админа
+}
+
+// Фаза матча для UI: 'upcoming' | 'live' | 'ended'.
+// OTS-47: «live» = матч ИДЁТ (status 3–7) ИЛИ отыгран, но исход ещё не финален
+// (ничья плей-офф, ждём пенальти). «ended» только когда результат финален.
+export function getMatchPhase(match) {
+  const s = Number(match.status);
+  if (!s || s <= 2) return "upcoming";
+  if (!isMatchResultFinal(match)) return "live";
+  return "ended";
+}
+
+// OTS-56 (правка автора): «Матчи сёдня» = ВСЕ активные матчи, отсортированные по
+// дате начала. Активный = не завершённый: upcoming + live (идёт) + «ждём исход»
+// (status≥8, но плей-офф-исход ещё не зафиксирован — это тоже live-фаза, OTS-47).
+// Концепция: тут не теряется НИ ОДИН матч — всё, что ещё актуально, видно.
+// Идущие/ждущие исхода матчи стартовали раньше upcoming, поэтому при сортировке
+// по kickoff естественно оказываются выше. ИНВАРИАНТ (tests/test_today_matches.mjs):
+// любой не-завершённый матч ОБЯЗАН быть в этом списке.
+export function buildTodayMatches(matches) {
+  return (matches || [])
+    .filter((m) => getMatchPhase(m) !== "ended")
+    .sort((a, b) => String(a.dateTimeRaw).localeCompare(String(b.dateTimeRaw)));
 }
 
 // ── Playoff bracket ───────────────────────────────────────────────────────────
@@ -108,49 +171,110 @@ export function classifyKnockoutRound(group) {
   return null;
 }
 
-// Escalating bracket bonus, ADDED on top of normal match points (исход +1 /
-// точный +3 / игрок +2 still apply to playoff matches). Deeper round = more.
-// The Final/champion stays as the existing "winner" outright (+8), so F earns no
-// bracket bonus here — no double counting.
-export const BRACKET_BONUS = {
-  R32: { outcome: 1, player: 0 },
-  R16: { outcome: 2, player: 1 },
-  QF:  { outcome: 4, player: 1 },
-  SF:  { outcome: 8, player: 2 },
+// OTS-30: плоские таблицы очков по этапам — БЕЗ эскалирующего бонуса (его убрали,
+// слишком путал). Исход и точный счёт СУММИРУЮТСЯ (раньше точный заменял исход),
+// игрок отдельно. Чем глубже раунд — тем дороже матч. Зеркало _STAGE_POINTS в
+// server.py (golden-тесты сверяют значения).
+export const STAGE_POINTS = {
+  group: { outcome: 1, exact: 2, player: 2 },
+  R32:   { outcome: 2, exact: 4, player: 3 },
+  R16:   { outcome: 2, exact: 4, player: 3 },
+  QF:    { outcome: 3, exact: 5, player: 4 },
+  SF:    { outcome: 3, exact: 5, player: 4 },
+  F:     { outcome: 4, exact: 6, player: 5 },
 };
 
+export function stagePoints(group) {
+  return STAGE_POINTS[classifyKnockoutRound(group)] || STAGE_POINTS.group;
+}
+
+// Сумма очков игрока ТОЛЬКО за матчи плей-офф (для бэйджа на сетке). Раньше это
+// был «бонус за сетку»; теперь бонуса нет — показываем реальные очки плей-офф.
 export function calculateBracketBonus(user) {
   let total = 0;
   for (const match of activeMatches) {
-    total += matchPointsFor(user.matches?.[match.id], match).bonus;
+    if (!classifyKnockoutRound(match.group)) continue;
+    total += matchPointsFor(user.matches?.[match.id], match).total;
   }
   return total;
 }
 
-// Points a single match is worth to a prediction = base (исход/точный/игрок) PLUS
-// the escalating playoff bonus for knockout rounds. `total` already includes the
-// bonus, so result cards/badges that read `.total` show the full earned points.
+// Points a single match is worth to a prediction по плоской таблице этапа.
+// `total` — полные очки матча (исход + точный счёт + игрок, всё суммируется).
+//
+// OTS-21/OTS-27: в плей-офф «исход» — это «кто пройдёт дальше». Берём явный пик
+// pred.advance, а если его нет — выводим из предсказанного счёта (как в группе),
+// чтобы игрок, заполнивший только счёт, получал очко за угаданный исход. Точный
+// счёт считается по осн.+доп. без серии пенальти.
+function teamsEq(a, b) {
+  return Boolean(a) && Boolean(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+// OTS-27: кого игрок назначил победителем плей-офф-матча. Источник истины — явный
+// пик «кто пройдёт» (pred.advance); если его нет — выводим из предсказанного счёта
+// (решающий счёт → победившая команда), ровно как исход в групповом этапе. Так
+// игрок, заполнивший только счёт, не теряет очко за угаданный исход.
+export function predictedAdvance(pred, match) {
+  if (pred?.advance) return pred.advance;
+  if (!pred || pred.home === "" || pred.away === "") return "";
+  const h = Number(pred.home), a = Number(pred.away);
+  if (Number.isNaN(h) || Number.isNaN(a)) return "";
+  if (h > a) return match.home;
+  if (a > h) return match.away;
+  return ""; // предсказана ничья — победитель не выбран
+}
+
 export function matchPointsFor(pred, match) {
   const actual = resolveActualResult(match);
   const base = calculatePointsForMatch(pred, actual);
-  const tier = BRACKET_BONUS[classifyKnockoutRound(match.group)];
-  let bonus = 0;
-  if (tier) {
-    if (base.outcomeCorrect)    bonus += tier.outcome;
-    if (base.bestPlayerCorrect) bonus += tier.player;
+  const round = classifyKnockoutRound(match.group);
+  const pts = STAGE_POINTS[round] || STAGE_POINTS.group;
+  if (!round) {
+    // групповой этап — calculatePointsForMatch уже посчитал по групповой таблице
+    return { ...base, bonus: 0, total: base.total };
   }
-  return { ...base, bonus, total: base.total + bonus };
+  // плей-офф: исход = угадан ли прошедший дальше (пик advance или вывод из счёта);
+  // точный счёт и исход суммируются, игрок отдельно.
+  const advanceCorrect = teamsEq(predictedAdvance(pred, match), actual?.winner);
+  const exact  = base.exactScore;
+  const player = base.bestPlayerCorrect;
+  const total = (advanceCorrect ? pts.outcome : 0) + (exact ? pts.exact : 0) + (player ? pts.player : 0);
+  return {
+    outcomeCorrect: advanceCorrect,
+    exactScore: exact,
+    bestPlayerCorrect: player,
+    bonus: 0,
+    total,
+  };
 }
 
 export function getUserTotalPoints(user) {
   let total = 0;
+  // matchPointsFor — единый источник правды по матчу: даёт базу + бонус плей-офф и
+  // в плей-офф считает исход по «кто прошёл» (pred.advance), а не по счёту.
   for (const match of activeMatches) {
-    const pred = user.matches?.[match.id];
-    const actual = resolveActualResult(match);
-    total += calculatePointsForMatch(pred, actual).total;
+    total += matchPointsFor(user.matches?.[match.id], match).total;
   }
   total += calculateOutrightsPoints(user.outrights, state.actualOutrights);
-  total += calculateBracketBonus(user);
   total += user.bonusPoints || 0;
   return total;
+}
+
+// Только очки за матчи плей-офф (база + бонус за раунд). Ауткрайты и групповой этап не учитываются.
+export function getUserPlayoffPoints(user) {
+  let total = 0;
+  for (const match of activeMatches) {
+    if (!classifyKnockoutRound(match.group)) continue;
+    total += matchPointsFor(user.matches?.[match.id], match).total;
+  }
+  return total;
+}
+
+// Стартовал ли плей-офф? true, как только у хотя бы одного knockout-матча есть
+// фактический результат. Пока false — показываем приятный пустой стейт вместо
+// голого списка нулей.
+export function playoffHasStarted() {
+  return activeMatches.some(
+    (m) => classifyKnockoutRound(m.group) && resolveActualResult(m)
+  );
 }
