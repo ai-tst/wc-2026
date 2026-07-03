@@ -1958,8 +1958,9 @@ body.design-v2 .v2mc .v2rc-t { font-size: 14px; gap: 6px; }
 body.design-v2 .v2mc .v2rc-t .team-flag { width: 20px; height: 14px; }
 @media (max-width: 560px) {
   /* tighter score block + smaller name font so full team names fit one line on phones */
-  .v2mc-score-input { width: 36px; height: 36px; font-size: 17px; }
+  .v2mc-score-input { width: 34px; height: 34px; font-size: 17px; }
   .v2mc-colon { font-size: 16px; }
+  .v2mc-score { gap: 2px; }
   body.design-v2 .v2mc .v2rc-t { font-size: 12px; }
   body.design-v2 .v2mc .v2rc-scoreline { gap: 4px; }
   body.design-v2 .v2mc .v2rc-t .team-flag { width: 18px; height: 13px; }
@@ -2007,6 +2008,12 @@ body.design-v2 .matches-list .match-row { min-height: 290px; }
   /* OTS-75: на мобиле карточка компактнее — базовую высоту не навязываем,
      иначе короткие карточки получат лишний пустой низ. Высота — по контенту. */
   body.design-v2 .matches-list .match-row { min-height: 0; }
+  /* OTS-75: grid-элементы по умолчанию имеют min-width:auto (= min-content), из-за
+     чего min-content карточки (счёт + боксы команд) раздувал колонку ШИРЕ экрана —
+     правый бокс команды уезжал за край на мобиле. min-width:0 даёт трекам ужаться
+     до вьюпорта; внутренний контент ужимается/обрезается по многоточию. */
+  body.design-v2 .main-grid > *,
+  body.design-v2 .matches-list > * { min-width: 0; }
 }
 
 /* v2: leaderboard expands fully on big screens, fixed height + scroll on phones */
@@ -2630,6 +2637,14 @@ body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked.v2mc-side-btn--on:hover .team
   50% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 }
 body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--pulse { animation: v2mcSidePulse 0.45s ease-in-out 3; }
+
+/* OTS-75: на узком экране ужимаем горизонтальные паддинги кнопок «кто пройдёт»,
+   чтобы имени команды хватало места без обрезки (правый бокс больше не уезжает
+   за край карточки). Идёт ПОСЛЕ базовых .v2mc-side-btn правил — перебивает их. */
+@media (max-width: 560px) {
+  body.design-v2 .v2mc .v2rc-t.v2mc-side-btn,
+  body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on { padding: 6px 4px; }
+}
 
 /* OTS-41: подсветка карточки матча при переходе по диплинку из бота (?match=).
    Только акцентное кольцо (токен --accent-soft) — точечно, дефолтный бордер карточки не трогаем. */
