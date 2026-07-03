@@ -1987,8 +1987,16 @@ body.design-v2 .matches-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
   gap: 12px;
-  align-items: start;
+  /* OTS-75: stretch → карточки в одном ряду равной высоты (если сетка станет 2-up).
+     В 1-up влияния нет, но держит инвариант «однотипные карточки одного размера». */
+  align-items: stretch;
 }
+
+/* OTS-75: единая базовая размерность карточек «Матчи сёдня». Полноразмерная
+   карточка (шапка + коэффициенты + прогноз + кнопка) — это МИНИМУМ. Короткий
+   контент (лайв без кнопки, матч без коэффициентов, режим казика) не схлопывает
+   карточку ниже базовой высоты — сетка не «едет». Карточку НЕ уменьшаем. */
+body.design-v2 .matches-list .match-row { min-height: 290px; }
 
 /* v2 mobile: collapse the matches/scoreboard row to a single stacked column
    (the desktop 1.5fr/0.8fr + 370px-min rules above out-specify the base mobile
@@ -1996,6 +2004,9 @@ body.design-v2 .matches-list {
 @media (max-width: 900px) {
   body.design-v2 .main-grid { grid-template-columns: 1fr; }
   body.design-v2 .matches-list { grid-template-columns: 1fr; }
+  /* OTS-75: на мобиле карточка компактнее — базовую высоту не навязываем,
+     иначе короткие карточки получат лишний пустой низ. Высота — по контенту. */
+  body.design-v2 .matches-list .match-row { min-height: 0; }
 }
 
 /* v2: leaderboard expands fully on big screens, fixed height + scroll on phones */
