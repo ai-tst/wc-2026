@@ -1177,6 +1177,25 @@ input:disabled {
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* OTS-78: зелёный тост успеха после подтверждения ставки */
+.bet-ok {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #022c22;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 800;
+  font-size: 15px;
+  z-index: 99999;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-soft), 0 0 26px rgba(34, 197, 94, 0.42);
+  animation: bet-error-in 0.2s ease-out;
+}
+
 /* ── WC Team / Player Selectors ─────────────────────────────────────────────── */
 
 .wcs-container {
@@ -1595,6 +1614,8 @@ body.design-v2 .bet-saved-note {
   color: var(--muted);
 }
 body.design-v2 .bet-saved-note--on { color: #7CFFB2; font-weight: 700; }
+/* OTS-78: черновик — ставка ещё не подтверждена */
+body.design-v2 .bet-saved-note--warn { color: var(--text); font-weight: 700; }
 
 /* Collapsible participants panel inside live "Матчи сёдня" rows */
 body.design-v2 .match-all-bets--collapsible {
@@ -1973,7 +1994,47 @@ body.design-v2 .v2mc .v2rc-t .team-flag { width: 20px; height: 14px; }
 }
 .v2mc-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
 .v2mc-player { width: 100%; height: 44px; }
-body.design-v2 .v2mc .confirm-bet-btn { width: 100%; height: 46px; border-radius: 12px; font-size: 15px; }
+/* OTS-78: главная CTA — крупная и однозначная, градиент по дизайн-системе */
+body.design-v2 .v2mc .confirm-bet-btn {
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #022c22;
+}
+body.design-v2 .v2mc .confirm-bet-btn--saved {
+  background: var(--accent-strong);
+  color: #022c22;
+}
+
+/* OTS-78: карточка-черновик — приглушена + пунктирная рамка, а CTA пульсирует,
+   чтобы взгляд сам упал на «Забетить». Никаких новых цветов — только --accent. */
+body.design-v2 .v2mc.v2mc--dirty {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+body.design-v2 .v2mc.v2mc--dirty .v2rc-hero { opacity: 0.92; }
+body.design-v2 .v2mc--dirty .confirm-bet-btn {
+  animation: bet-cta-pulse 1.3s ease-in-out infinite;
+}
+@keyframes bet-cta-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); }
+  50%      { box-shadow: 0 0 0 5px transparent, 0 0 20px 3px var(--accent-soft); }
+}
+/* OTS-78: короткая вспышка-«принято» после подтверждения */
+body.design-v2 .v2mc.v2mc--just-saved { animation: bet-saved-pop 0.6s ease-out; }
+@keyframes bet-saved-pop {
+  0%   { box-shadow: 0 0 0 0 var(--accent-soft); }
+  40%  { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 28px 5px rgba(34, 197, 94, 0.4); }
+  100% { box-shadow: var(--shadow-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.design-v2 .v2mc--dirty .confirm-bet-btn,
+  body.design-v2 .v2mc.v2mc--just-saved { animation: none; }
+}
 
 /* v2: give the matches the bigger share of the row so 2-up cards are genuinely
    wide (the only lever that widens 2-up cards is a wider column) */
