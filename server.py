@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory, request, session
+from flask import Flask, jsonify, send_from_directory, request, session, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
 load_dotenv()
@@ -1924,6 +1924,44 @@ def today_date():
 @app.route("/")
 def index():
     return send_from_directory("public", "index.html")
+
+
+# ── OTS-82: новый дизайн v3 — отдельный раздел ЗА ГЕЙТОМ по аккаунту Тимы ─────
+# Старый дизайн не тронут: v3 живёт в app/v3/ (вне static_folder=public), отдаётся
+# ТОЛЬКО через эти роуты и ТОЛЬКО аккаунту `timofeytst`. Любой другой (и аноним) —
+# 302 на «/» (старый дизайн). Так остальные не видят ни раздела, ни его ассетов.
+V3_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v3")
+V3_ALLOWED_NICK = "timofeytst"
+
+
+def _v3_allowed():
+    uid = current_user_id()
+    if not uid:
+        return False
+    db = get_db()
+    try:
+        user = db.execute("SELECT nickname FROM users WHERE id=%s", [uid]).fetchone()
+    finally:
+        db.close()
+    return bool(user) and (user["nickname"] or "").strip().lower() == V3_ALLOWED_NICK
+
+
+@app.route("/v3")
+def v3_root_redirect():
+    # Каноничный URL — со слэшем: без него относительные пути ассетов резолвятся мимо /v3/.
+    if not _v3_allowed():
+        return redirect("/")
+    return redirect("/v3/")
+
+
+@app.route("/v3/")
+@app.route("/v3/<path:fn>")
+def v3_entry(fn=None):
+    if not _v3_allowed():
+        return redirect("/")
+    if not fn or fn.endswith("/"):
+        fn = "index.html"
+    return send_from_directory(V3_DIR, fn)
 
 
 # ==========================================

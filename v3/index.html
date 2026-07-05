@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0c">
+<title>ОТСОС · v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/v3/styles.css">
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header>
+  <div class="shell hbar">
+    <img class="logo" id="logo" src="/otsos-logo.png" alt="ОТСОС">
+    <div class="brand"><div class="n">ОТСОС</div><div class="s">World Cup 2026</div></div>
+    <div class="hspace"></div>
+    <div class="pts" id="ptsBtn"><b id="ptsVal">–</b><span>очков</span></div>
+    <button class="burger" id="burger" aria-label="Меню"><i></i></button>
+  </div>
+</header>
+
+<!-- ============ TICKER ============ -->
+<div class="ticker" id="ticker" style="display:none">
+  <div class="shell" style="display:flex;align-items:center;overflow:hidden">
+    <span class="lab"><i></i>Live</span>
+    <div class="tkwin"><div class="tk" id="tk"></div></div>
+  </div>
+</div>
+
+<div class="shell wrap">
+<div class="layout">
+<main>
+
+<!-- ============ FEED VIEW ============ -->
+<div class="view on" id="view-feed">
+
+  <div class="hero" id="hero" style="display:none">
+    <div><h3 id="heroHi">С возвращением 🫡</h3><p id="heroSub"></p></div>
+    <div class="rank"><div class="p" id="heroRank">–</div><div class="l">место</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" id="seg">
+      <span class="pill" id="segPill"></span>
+      <button data-f="live"><span class="dot"></span>Лайв</button>
+      <button data-f="today">Сегодня</button>
+      <button data-f="all">Все</button>
+    </div>
+    <label class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+      <input id="searchInput" placeholder="Найти команду…">
+    </label>
+  </div>
+
+  <!-- второй уровень — только под «Все» -->
+  <div class="subseg" id="subseg">
+    <button class="subchip on" data-s="all">Все</button>
+    <button class="subchip" data-s="future">Будущие</button>
+    <button class="subchip" data-s="finished">Завершённые</button>
+  </div>
+
+  <div class="sechead"><span class="t" id="feedTitle">Матчи</span><span class="c" id="feedCount"></span></div>
+  <div class="empty" id="emptyState">Ничего не нашлось 🤷</div>
+  <div id="feedList"></div>
+
+</div><!-- /view-feed -->
+
+<!-- ============ BRACKET VIEW ============ -->
+<div class="view" id="view-bracket">
+  <div class="backbtn" data-go="feed">‹ к матчам</div>
+  <div class="bkhead">
+    <h2>🏆 Турнирная сетка</h2>
+    <span class="mine">твои очки за плей-офф: <b id="bkMine">+0</b></span>
+  </div>
+  <div class="bkscroll"><div class="bracket" id="bracket"></div></div>
+</div>
+
+<!-- ============ PROFILE VIEW ============ -->
+<div class="view" id="view-prof">
+  <div class="backbtn" data-go="feed">‹ назад</div>
+  <div class="hero" style="margin-bottom:18px"><span class="badge">Ты</span>
+    <div><h3 id="pfNick">—</h3><p id="pfSub"></p></div>
+    <div class="rank"><div class="p" id="pfPts">–</div><div class="l">очков</div></div>
+  </div>
+  <div class="sechead"><span class="t">🎯 Твои долгосрочные</span></div>
+  <div class="pcard" id="pfOutrights"></div>
+</div>
+
+</main>
+
+<!-- ============ RIGHT RAIL (desktop) ============ -->
+<aside class="rail">
+  <div class="card">
+    <h4>🏅 Таблица лидеров</h4>
+    <div id="railLb"></div>
+  </div>
+  <div class="card">
+    <h4>🏆 Сетка плей-офф</h4>
+    <button class="railbtn" data-go="bracket">Открыть турнирную сетку →</button>
+  </div>
+</aside>
+
+</div><!-- /layout -->
+</div><!-- /shell -->
+
+<!-- ============ SLIDE-OVER MENU ============ -->
+<div class="scrim" id="scrim"></div>
+<nav class="menu" id="menu">
+  <div class="mh"><img src="/otsos-logo.png"><div><div class="n">ОТСОС</div><div class="s">World Cup 2026</div></div></div>
+  <div class="mi on" data-v="feed"><span class="ico">⚽</span>Матчи</div>
+  <div class="mi" data-v="live"><span class="ico">📡</span>Лайв<span class="live-d" id="menuLiveDot" style="display:none"></span></div>
+  <div class="mi" data-v="bracket"><span class="ico">🏆</span>Турнирная сетка</div>
+  <div class="mi" data-v="prof"><span class="ico">👤</span>Профиль</div>
+  <div class="spacer"></div>
+  <div class="mi" data-v="old" style="color:var(--muted)"><span class="ico">↩︎</span>Вернуться на старый дизайн</div>
+  <div class="mi casino" id="casinoBtn"><span class="ico">🎰</span>Режим казика</div>
+</nav>
+
+<!-- ============ MESSI SHEET ============ -->
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h4><img src="/messi-ai.webp">Месси думает 🐐</h4>
+  <div class="sub" id="messiSub">спросил у AI — кого брать лучшим игроком</div>
+  <div class="mchat" id="mchat"></div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<script type="module" src="/v3/app.js"></script>
+</body>
+</html>
