@@ -329,7 +329,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupTestControls();
   setupResultsToggle();
   setupPlayerProfile();
-  setupDesignToggle();
   setupBracket();
   setupCasino();
   await route();
@@ -344,27 +343,10 @@ function setupBracket() {
   $("bracket-back-btn")?.addEventListener("click", () => showView("view-main"));
 }
 
-// ── Design v1/v2 toggle ───────────────────────────────────────────────────────
+// ── Design ────────────────────────────────────────────────────────────────────
+// v2 — единственный дизайн (v1 заморожен). Всегда активен, без переключателя.
 function applyDesign() {
-  const v2 = currentUser?.designVersion === "v2";
-  document.body.classList.toggle("design-v2", v2);
-  const btn = $("design-toggle-btn");
-  if (btn) btn.textContent = v2 ? "↩ Старый дизайн" : "✨ Новый дизайн";
-}
-
-function setupDesignToggle() {
-  const btn = $("design-toggle-btn");
-  if (!btn) return;
-  btn.addEventListener("click", async () => {
-    if (!currentUser) return;
-    const next = currentUser.designVersion === "v2" ? "v1" : "v2";
-    btn.disabled = true;
-    btn.textContent = "…";
-    // Persist, then hard-reload so the new design applies cleanly (no half-applied styles)
-    try { await apiSetDesignVersion(next); }
-    catch (err) { console.error("[design] save failed:", err); }
-    location.reload();
-  });
+  document.body.classList.add("design-v2");
 }
 
 function setupResultsToggle() {

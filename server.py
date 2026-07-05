@@ -339,23 +339,97 @@ PUBLIC_BASE_URL = "https://" + (os.environ.get("RAILWAY_PUBLIC_DOMAIN") or "tst-
 # ── Point calculation (mirrors points.js logic) ───────────────────────────────
 import unicodedata as _ud
 
+import re as _re
+
+# OTS-73: человеческий матчинг имени игрока. Зеркало playerNamesMatch в
+# public/points.js (golden-тесты в tests/ сверяют паритет). Кириллица→латиница,
+# снятие диакритики/пунктуации, совпадение по подмножеству токенов (полное имя /
+# имя+фамилия / только фамилия, в т.ч. испанские двойные фамилии «Yamal» ⟵
+# «Lamine Yamal Nasraoui Ebana»), инициалы, мелкие опечатки. Неоднозначность
+# внутри состава матча (две одинаковые фамилии) не засчитываем.
+_CYR_MAP = {
+    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"e","ж":"zh","з":"z",
+    "и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
+    "с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh",
+    "щ":"shch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya",
+}
+_PARTICLES = {
+    "de","del","da","di","do","dos","das","della","la","le","van","von","der",
+    "den","al","el","bin","ibn","san","st","saint","junior","jnr","jr","the","of",
+}
+
 def _norm_player(name):
     if not name: return ""
-    n = _ud.normalize("NFD", name)
-    n = "".join(c for c in n if _ud.category(c) != "Mn")
-    return n.lower().strip()
+    s = name.lower()
+    s = "".join(_CYR_MAP.get(c, c) for c in s)
+    s = _ud.normalize("NFD", s)
+    s = "".join(c for c in s if _ud.category(c) != "Mn")
+    s = s.replace("'", "").replace("’", "").replace("`", "")
+    return s.strip()
 
-def _players_match(a, b):
-    na, nb = _norm_player(a), _norm_player(b)
-    if not na or not nb: return False
-    if na == nb: return True
-    pa, pb = na.split(), nb.split()
-    if pa[-1] != pb[-1]: return False
-    fa, fb = pa[0], pb[0]
-    if fa == fb: return True
-    if fa.endswith(".") and fb.startswith(fa[:-1]): return True
-    if fb.endswith(".") and fa.startswith(fb[:-1]): return True
+def _player_tokens(name):
+    return [t for t in _re.split(r"[^a-z0-9.]+", _norm_player(name)) if t]
+
+def _strip_initial(t): return t.rstrip(".")
+def _is_strong_tok(t):
+    s = _strip_initial(t)
+    return len(s) >= 3 and s not in _PARTICLES
+
+def _lev1(a, b):
+    if a == b: return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1: return False
+    i = j = edits = 0
+    while i < la and j < lb:
+        if a[i] == b[j]:
+            i += 1; j += 1; continue
+        edits += 1
+        if edits > 1: return False
+        if la > lb: i += 1
+        elif lb > la: j += 1
+        else: i += 1; j += 1
+    if i < la or j < lb: edits += 1
+    return edits <= 1
+
+def _tok_match(x, y):
+    xs, ys = _strip_initial(x), _strip_initial(y)
+    if not xs or not ys: return False
+    if xs == ys: return True
+    if len(xs) == 1 and ys.startswith(xs): return True
+    if len(ys) == 1 and xs.startswith(ys): return True
+    if len(xs) >= 5 and len(ys) >= 5 and _lev1(xs, ys): return True
     return False
+
+def _subset_tokens(A, B):
+    used = [False] * len(B)
+    for a in A:
+        hit = -1
+        for j, b in enumerate(B):
+            if not used[j] and _tok_match(a, b): hit = j; break
+        if hit < 0: return False
+        used[hit] = True
+    return True
+
+def _tokens_match(A, B):
+    if not A or not B: return False
+    if A == B: return True  # точное равенство токенов
+    if not (_subset_tokens(A, B) or _subset_tokens(B, A)): return False
+    for a in A:
+        for b in B:
+            if _is_strong_tok(a) and _is_strong_tok(b) and _tok_match(a, b):
+                return True
+    return False
+
+def _players_match(a, b, squad=None):
+    A, B = _player_tokens(a), _player_tokens(b)
+    if not _tokens_match(A, B): return False
+    if squad:
+        cnt = 0
+        for s in squad:
+            if _tokens_match(A, _player_tokens(s)):
+                cnt += 1
+                if cnt >= 2: return False
+    return True
 
 # OTS-30: плоские таблицы очков по этапам — БЕЗ эскалирующего бонуса (его убрали,
 # слишком путал). Исход и точный счёт теперь СУММИРУЮТСЯ (раньше точный заменял
@@ -372,7 +446,7 @@ _STAGE_POINTS = {
 }
 
 
-def _calc_match_points(pred_home, pred_away, pred_player, act_home, act_away, act_player):
+def _calc_match_points(pred_home, pred_away, pred_player, act_home, act_away, act_player, squad=None):
     """База ГРУППОВОГО матча: исход (по счёту) + точный счёт + игрок, СУММИРУЕМ
     (OTS-30). Точный счёт ⇒ исход тоже верен, поэтому за угаданный точный счёт
     выходит outcome+exact. Возвращает (total, outcome, exact, player)."""
@@ -384,7 +458,7 @@ def _calc_match_points(pred_home, pred_away, pred_player, act_home, act_away, ac
         return 0, False, False, False
     exact   = ph == ah and pa == aa
     outcome = (ph == pa) == (ah == aa) and (ph > pa) == (ah > aa)
-    player  = _players_match(pred_player, act_player)
+    player  = _players_match(pred_player, act_player, squad)
     total = (pts["outcome"] if outcome else 0) + (pts["exact"] if exact else 0) + (pts["player"] if player else 0)
     return total, outcome, exact, player
 
@@ -459,13 +533,13 @@ def _sanitize_playoff_pick(group, pred_home, pred_away, pred_advance, match_home
 
 def _playoff_match_points(pred_home, pred_away, pred_player, pred_advance,
                           act_home, act_away, act_player, act_winner, group,
-                          match_home="", match_away=""):
+                          match_home="", match_away="", squad=None):
     """OTS-30: очки за матч по плоской таблице этапа, БЕЗ бонуса. Исход + точный
     счёт + игрок СУММИРУЮТСЯ. В группе исход — по счёту; в плей-офф исход = кто
     прошёл дальше (с пенальти), точный счёт — осн.+доп. без серии пенальти.
     Возвращает (total, outcome, exact, player, pts), где pts — таблица этапа."""
     total, outcome, exact, player = _calc_match_points(
-        pred_home, pred_away, pred_player, act_home, act_away, act_player)
+        pred_home, pred_away, pred_player, act_home, act_away, act_player, squad)
     pts = _stage_points(group)
     if _classify_knockout(group) is None:
         # групповой этап — _calc_match_points уже посчитал по групповой таблице
@@ -925,7 +999,8 @@ def _check_and_send_results():
                 total, outcome, exact, player, pts = _playoff_match_points(
                     pred["home_score"], pred["away_score"], pred["best_player"], pred["advance"],
                     home_score, away_score, best, winner, group,
-                    mj.get("home", ""), mj.get("away", "")
+                    mj.get("home", ""), mj.get("away", ""),
+                    list(_player_ratings_cache.get(mid, {}).keys()) or None
                 )
 
                 # Вайб-сообщение выбираем по «групповому» качеству ставки (0/1/2/3/5);
@@ -1911,6 +1986,18 @@ def _safe_schedule_snapshot(db, now_utc):
 def _matches_resp(data):
     """jsonify + заголовок X-Matches-Degraded, чтобы фронт показал плашку
     «данные неполные», когда провайдер sstats лёг и мы отдаём фолбэк."""
+    # OTS-73: прикладываем состав матча (имена из кэша рейтингов) к завершённым
+    # матчам — фронту для отсева неоднозначных совпадений «лучшего игрока» по
+    # фамилии (две одинаковые фамилии в матче → по фамилии не засчитываем).
+    # Не персистим в match_json — считаем из кэша на каждый ответ (без раздувания БД).
+    if isinstance(data, list):
+        for m in data:
+            try:
+                roster = _player_ratings_cache.get(m.get("id"))
+                if roster:
+                    m["players"] = list(roster.keys())
+            except Exception:
+                pass
     r = jsonify(data)
     r.headers["X-Matches-Degraded"] = "1" if CACHE["matches"]["degraded"] else "0"
     return r

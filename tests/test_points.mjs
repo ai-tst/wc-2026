@@ -53,6 +53,25 @@ test("диакритика в имени игрока", () => eq(pts(P("0", "1",
 group("Игнорирование диакритики/сокращений");
 test("J. Alvarez = Julian Alvarez", () => eq(pts(P("1", "0", "J. Alvarez"), A("1", "0", "Julian Alvarez")), 5));
 
+group("Человеческий матчинг игрока (OTS-73) — паритет с сервером");
+const YAMAL = "Lamine Yamal Nasraoui Ebana";
+// helper: actual с составом (squad) для проверки неоднозначности
+const AS = (h, a, bp, squad) => ({ home: h, away: a, bestPlayer: bp, squad });
+test("только фамилия 'Yamal' ⟵ полное = +2 (игрок)", () => eq(pts(P("1", "1", "Yamal"), A("1", "1", YAMAL)), 5));
+test("имя+фамилия 'Lamine Yamal' ⟵ полное", () => eq(pts(P("1", "1", "Lamine Yamal"), A("1", "1", YAMAL)), 5));
+test("кириллица 'Ямаль' ⟵ полное", () => eq(pts(P("1", "1", "Ямаль"), A("1", "1", YAMAL)), 5));
+test("кириллица 'Ямал' ⟵ полное", () => eq(pts(P("1", "1", "Ямал"), A("1", "1", YAMAL)), 5));
+test("кириллица 'Месси' ⟵ 'Lionel Messi'", () => eq(pts(P("1", "1", "Месси"), A("1", "1", "Lionel Messi")), 5));
+test("опечатка (Yamall) ⟵ полное", () => eq(pts(P("1", "1", "Yamall"), A("1", "1", YAMAL)), 5));
+test("лишние пробелы/регистр", () => eq(pts(P("1", "1", "  LAMINE   yamal "), A("1", "1", YAMAL)), 5));
+test("другой игрок 'Pedri' не засчитан", () => eq(pts(P("1", "1", "Pedri"), A("1", "1", YAMAL)), 3));
+test("неоднозначность: две 'Silva' в матче → по фамилии нет",
+  () => eq(pts(P("1", "1", "Silva"), AS("1", "1", "Bernardo Silva", ["Bernardo Silva", "Thiago Silva", "Rodri"])), 3));
+test("полное имя однозначно при двух 'Silva' → да",
+  () => eq(pts(P("1", "1", "Bernardo Silva"), AS("1", "1", "Bernardo Silva", ["Bernardo Silva", "Thiago Silva", "Rodri"])), 5));
+test("уникальная фамилия в составе → да",
+  () => eq(pts(P("1", "1", "Yamal"), AS("1", "1", YAMAL, [YAMAL, "Pedri", "Cubarsi"])), 5));
+
 group("Ауткрайты (calculateOutrightsPoints)");
 const ao = { winner: "Аргентина", bestPlayer: "Messi", topScorer: "Mbappe", darkHorse: JSON.stringify(["Гана", "Чехия", "Катар"]) };
 test("чемпион = +8", () => eq(calculateOutrightsPoints({ winner: "Аргентина", bestPlayer: "", topScorer: "", darkHorse: "" }, ao), 8));

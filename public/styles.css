@@ -1177,6 +1177,25 @@ input:disabled {
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* OTS-78: зелёный тост успеха после подтверждения ставки */
+.bet-ok {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #022c22;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 800;
+  font-size: 15px;
+  z-index: 99999;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-soft), 0 0 26px rgba(34, 197, 94, 0.42);
+  animation: bet-error-in 0.2s ease-out;
+}
+
 /* ── WC Team / Player Selectors ─────────────────────────────────────────────── */
 
 .wcs-container {
@@ -1958,8 +1977,9 @@ body.design-v2 .v2mc .v2rc-t { font-size: 14px; gap: 6px; }
 body.design-v2 .v2mc .v2rc-t .team-flag { width: 20px; height: 14px; }
 @media (max-width: 560px) {
   /* tighter score block + smaller name font so full team names fit one line on phones */
-  .v2mc-score-input { width: 36px; height: 36px; font-size: 17px; }
+  .v2mc-score-input { width: 34px; height: 34px; font-size: 17px; }
   .v2mc-colon { font-size: 16px; }
+  .v2mc-score { gap: 2px; }
   body.design-v2 .v2mc .v2rc-t { font-size: 12px; }
   body.design-v2 .v2mc .v2rc-scoreline { gap: 4px; }
   body.design-v2 .v2mc .v2rc-t .team-flag { width: 18px; height: 13px; }
@@ -1972,7 +1992,61 @@ body.design-v2 .v2mc .v2rc-t .team-flag { width: 20px; height: 14px; }
 }
 .v2mc-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
 .v2mc-player { width: 100%; height: 44px; }
-body.design-v2 .v2mc .confirm-bet-btn { width: 100%; height: 46px; border-radius: 12px; font-size: 15px; }
+/* OTS-78: главная CTA — крупная и однозначная, градиент по дизайн-системе */
+body.design-v2 .v2mc .confirm-bet-btn {
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #022c22;
+}
+body.design-v2 .v2mc .confirm-bet-btn--saved {
+  background: var(--accent-strong);
+  color: #022c22;
+}
+/* OTS-78: ставка уже принята → «Изменить» спокойная, вторичная (серая), НЕ зелёный
+   призыв. Зелёный CTA остаётся только там, где ставка ещё не сделана. */
+body.design-v2 .v2mc .confirm-bet-btn.confirm-bet-btn--edit {
+  /* height/размер как у зелёной CTA — кнопка НЕ должна прыгать при смене состояния */
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+body.design-v2 .v2mc .confirm-bet-btn.confirm-bet-btn--edit:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* OTS-78: карточка-черновик — приглушена + пунктирная рамка, а зелёная CTA
+   пульсирует, чтобы взгляд сам упал на неё. Никаких новых цветов — только --accent. */
+body.design-v2 .v2mc.v2mc--dirty {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+body.design-v2 .v2mc.v2mc--dirty .v2rc-hero { opacity: 0.92; }
+body.design-v2 .v2mc--dirty .confirm-bet-btn {
+  animation: bet-cta-pulse 1.3s ease-in-out infinite;
+}
+@keyframes bet-cta-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); }
+  50%      { box-shadow: 0 0 0 5px transparent, 0 0 20px 3px var(--accent-soft); }
+}
+/* OTS-78: короткая вспышка-«принято» после подтверждения */
+body.design-v2 .v2mc.v2mc--just-saved { animation: bet-saved-pop 0.6s ease-out; }
+@keyframes bet-saved-pop {
+  0%   { box-shadow: 0 0 0 0 var(--accent-soft); }
+  40%  { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 28px 5px rgba(34, 197, 94, 0.4); }
+  100% { box-shadow: var(--shadow-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.design-v2 .v2mc--dirty .confirm-bet-btn,
+  body.design-v2 .v2mc.v2mc--just-saved { animation: none; }
+}
 
 /* v2: give the matches the bigger share of the row so 2-up cards are genuinely
    wide (the only lever that widens 2-up cards is a wider column) */
@@ -1987,8 +2061,16 @@ body.design-v2 .matches-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
   gap: 12px;
-  align-items: start;
+  /* OTS-75: stretch → карточки в одном ряду равной высоты (если сетка станет 2-up).
+     В 1-up влияния нет, но держит инвариант «однотипные карточки одного размера». */
+  align-items: stretch;
 }
+
+/* OTS-75: единая базовая размерность карточек «Матчи сёдня». Полноразмерная
+   карточка (шапка + коэффициенты + прогноз + кнопка) — это МИНИМУМ. Короткий
+   контент (лайв без кнопки, матч без коэффициентов, режим казика) не схлопывает
+   карточку ниже базовой высоты — сетка не «едет». Карточку НЕ уменьшаем. */
+body.design-v2 .matches-list .match-row { min-height: 290px; }
 
 /* v2 mobile: collapse the matches/scoreboard row to a single stacked column
    (the desktop 1.5fr/0.8fr + 370px-min rules above out-specify the base mobile
@@ -1996,6 +2078,15 @@ body.design-v2 .matches-list {
 @media (max-width: 900px) {
   body.design-v2 .main-grid { grid-template-columns: 1fr; }
   body.design-v2 .matches-list { grid-template-columns: 1fr; }
+  /* OTS-75: на мобиле карточка компактнее — базовую высоту не навязываем,
+     иначе короткие карточки получат лишний пустой низ. Высота — по контенту. */
+  body.design-v2 .matches-list .match-row { min-height: 0; }
+  /* OTS-75: grid-элементы по умолчанию имеют min-width:auto (= min-content), из-за
+     чего min-content карточки (счёт + боксы команд) раздувал колонку ШИРЕ экрана —
+     правый бокс команды уезжал за край на мобиле. min-width:0 даёт трекам ужаться
+     до вьюпорта; внутренний контент ужимается/обрезается по многоточию. */
+  body.design-v2 .main-grid > *,
+  body.design-v2 .matches-list > * { min-width: 0; }
 }
 
 /* v2: leaderboard expands fully on big screens, fixed height + scroll on phones */
@@ -2619,6 +2710,14 @@ body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--locked.v2mc-side-btn--on:hover .team
   50% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 }
 body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--pulse { animation: v2mcSidePulse 0.45s ease-in-out 3; }
+
+/* OTS-75: на узком экране ужимаем горизонтальные паддинги кнопок «кто пройдёт»,
+   чтобы имени команды хватало места без обрезки (правый бокс больше не уезжает
+   за край карточки). Идёт ПОСЛЕ базовых .v2mc-side-btn правил — перебивает их. */
+@media (max-width: 560px) {
+  body.design-v2 .v2mc .v2rc-t.v2mc-side-btn,
+  body.design-v2 .v2mc .v2rc-t.v2mc-side-btn--on { padding: 6px 4px; }
+}
 
 /* OTS-41: подсветка карточки матча при переходе по диплинку из бота (?match=).
    Только акцентное кольцо (токен --accent-soft) — точечно, дефолтный бордер карточки не трогаем. */

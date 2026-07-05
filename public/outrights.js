@@ -22,7 +22,7 @@ function ruFlag(name) {
   const code = RU_TEAM_FLAGS[(name || "").trim()];
   return code ? `<span class="fi fi-${code} team-flag"></span>` : "";
 }
-const isV2 = () => currentUser?.designVersion === "v2";
+const isV2 = () => true; // v2 — единственный дизайн (v1 заморожен)
 
 // ── Dark horse chip selector ─────────────────────────────────────────────────
 

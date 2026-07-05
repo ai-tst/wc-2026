@@ -196,6 +196,26 @@ function showBetError(msg) {
   setTimeout(() => el.remove(), 3000);
 }
 
+// OTS-78: заметный сигнал успеха после подтверждения ставки (зелёный тост).
+function showBetOk(msg) {
+  document.querySelector(".bet-ok")?.remove();
+  const el = document.createElement("div");
+  el.className = "bet-ok";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+// OTS-78: не дать случайно уйти со страницы с неподтверждённой («черновой»)
+// ставкой — если на странице есть хоть одна карточка в состоянии draft, браузер
+// покажет своё нативное предупреждение перед уходом/перезагрузкой.
+window.addEventListener("beforeunload", (e) => {
+  if (document.querySelector(".match-row.v2mc--dirty")) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
 // getMatchPhase перенесён в points.js (чтобы порядок «Матчи сёдня» был покрыт
 // node-тестом tests/test_today_matches.mjs). Здесь — импорт из points.js.
 
@@ -841,19 +861,49 @@ function createMatchRowV2(match) {
       if (inp.value.length > 2) inp.value = inp.value.slice(0, 2);
       // OTS-33: счёт меняется → пересинхронизируем/лочим выбор прохода.
       playoff?.syncWithScore(homeInput.value, awayInput.value);
+      refreshBetState();  // OTS-78: обновляем «черновик/принято»
     }));
 
-    const hasPrediction = prediction?.home !== undefined && prediction?.home !== "";
     const confirmBtn = document.createElement("button");
     confirmBtn.type = "button";
     confirmBtn.className = "confirm-bet-btn";
-    confirmBtn.textContent = hasPrediction ? "Изменить ставку" : "Подтвердить ставку";
     controls.appendChild(confirmBtn);
 
-    const savedNote = document.createElement("div");
-    savedNote.className = "bet-saved-note" + (hasPrediction ? " bet-saved-note--on" : "");
-    savedNote.textContent = hasPrediction ? "✓ ставка принята · можно менять" : "ставка ещё не сделана";
-    controls.appendChild(savedNote);
+    // OTS-78: состояние ставки транслирует САМА кнопка (без текста-подписи под ней,
+    // прямой фидбэк CEO). Пусто/черновик → зелёная CTA (+ пунктир и пульс на draft),
+    // принято → спокойная серая «Изменить». beforeunload ловит уход с черновиком.
+    const betFormEmpty = (d) =>
+      d.home === "" && d.away === "" && !d.bestPlayer && (!playoff || !d.advance);
+    const betMatchesSaved = (d) => {
+      const s = currentUser.matches?.[match.id];
+      if (!s) return betFormEmpty(d);
+      return String(s.home ?? "") === d.home
+          && String(s.away ?? "") === d.away
+          && (s.bestPlayer ?? "") === d.bestPlayer
+          && (!playoff || (s.advance ?? "") === (d.advance ?? ""));
+    };
+    const refreshBetState = () => {
+      if (confirmBtn.disabled) return;                 // идёт сохранение — не трогаем
+      const d = readData();
+      const saved = currentUser.matches?.[match.id];
+      const clean = betMatchesSaved(d);
+      const dirty = !clean && !betFormEmpty(d);
+      row.classList.toggle("v2mc--dirty", dirty);
+      row.classList.toggle("v2mc--saved", Boolean(saved) && clean);
+      if (dirty) {
+        // Ввёл, но не подтвердил — зелёная CTA «Подтвердить», карточка в draft.
+        confirmBtn.className = "confirm-bet-btn";
+        confirmBtn.textContent = saved ? "Подтвердить ставку" : "Сделать ставку";
+      } else if (saved) {
+        // Ставка принята — спокойная серая вторичная «Изменить», без призыва.
+        confirmBtn.className = "confirm-bet-btn confirm-bet-btn--edit";
+        confirmBtn.textContent = "Изменить ставку";
+      } else {
+        // Пусто — единственная зелёная CTA «Сделать ставку».
+        confirmBtn.className = "confirm-bet-btn";
+        confirmBtn.textContent = "Сделать ставку";
+      }
+    };
 
     // 🎰 Режим казика: огромная «НАУГАД БЛЯ» вместо «Изменить ставку».
     // Видна/скрыта чисто через CSS (body.casino-mode), так что переключение
@@ -881,14 +931,15 @@ function createMatchRowV2(match) {
         // Пишем локальный стейт ТОЛЬКО после подтверждения сервером,
         // иначе при 403 («матч начался») остаётся фантомная ставка.
         currentUser.matches[match.id] = data;
-        savedNote.className = "bet-saved-note bet-saved-note--on";
-        savedNote.textContent = "✓ ставка принята · можно менять";
+        row.classList.remove("v2mc--dirty");
+        row.classList.add("v2mc--just-saved");     // короткая вспышка-«принято»
         confirmBtn.className = "confirm-bet-btn confirm-bet-btn--saved";
-        confirmBtn.textContent = "✓ Ставка принята";
+        confirmBtn.textContent = "Ставка принята";
+        showBetOk("Ставка принята");                // OTS-78: явный успех — тостом, не текстом под кнопкой
         setTimeout(() => {
-          confirmBtn.className = "confirm-bet-btn";
-          confirmBtn.textContent = "Изменить ставку";
+          row.classList.remove("v2mc--just-saved");
           confirmBtn.disabled = false;
+          refreshBetState();                        // осядет в спокойное «принято» (серая «Изменить»)
         }, 1500);
       } catch (err) {
         console.error("Failed to save prediction:", err);
@@ -928,6 +979,19 @@ function createMatchRowV2(match) {
     });
 
     getPlayers = attachDropdown(playerInput, match);
+
+    // OTS-78: любое изменение формы пересчитывает «черновик/принято».
+    playerInput.addEventListener("input", refreshBetState);
+    playerInput.addEventListener("change", refreshBetState);
+    if (playoff) {
+      teamSpans.forEach((el) => {
+        el.addEventListener("click", refreshBetState);
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") refreshBetState();
+        });
+      });
+    }
+    refreshBetState();  // выставляем начальное состояние карточки
   } else {
     const lock = document.createElement("p");
     lock.className = "match-locked-label";
