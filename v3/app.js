@@ -25,7 +25,12 @@ const KO_RU = { R32: "1/16 финала", R16: "1/8 финала", QF: "1/4 фи
 function stageLabel(m) {
   const ko = classifyKnockoutRound(m.group);
   if (ko) return KO_RU[ko];
-  return esc((m.group || "").replace(/^Group\b/i, "Группа").replace(/\bGroup\b/gi, "Группа"));
+  const g = m.group || "";
+  const md = g.match(/Group Stage\s*-?\s*(\d+)/i);   // "Group Stage - 1" → тур группового этапа
+  if (md) return `Групповой этап · ${md[1]} тур`;
+  const gl = g.match(/^Group\s+([A-Z])\b/i);          // "Group A" → "Группа A"
+  if (gl) return `Группа ${gl[1].toUpperCase()}`;
+  return esc(g.replace(/^Group\b/i, "Группа").replace(/\bGroup\b/gi, "Группа"));
 }
 function isKO(m) { return Boolean(classifyKnockoutRound(m.group)); }
 
