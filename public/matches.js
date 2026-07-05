@@ -869,13 +869,9 @@ function createMatchRowV2(match) {
     confirmBtn.className = "confirm-bet-btn";
     controls.appendChild(confirmBtn);
 
-    const savedNote = document.createElement("div");
-    savedNote.className = "bet-saved-note";
-    controls.appendChild(savedNote);
-
-    // OTS-78: явные состояния «черновик / принято». Пока форма отличается от
-    // сохранённой ставки — карточка draft: кнопка кричит «Забетить», подсказка
-    // предупреждает, beforeunload ловит уход. Совпала с сохранённой → «принято».
+    // OTS-78: состояние ставки транслирует САМА кнопка (без текста-подписи под ней,
+    // прямой фидбэк CEO). Пусто/черновик → зелёная CTA (+ пунктир и пульс на draft),
+    // принято → спокойная серая «Изменить». beforeunload ловит уход с черновиком.
     const betFormEmpty = (d) =>
       d.home === "" && d.away === "" && !d.bestPlayer && (!playoff || !d.advance);
     const betMatchesSaved = (d) => {
@@ -895,25 +891,17 @@ function createMatchRowV2(match) {
       row.classList.toggle("v2mc--dirty", dirty);
       row.classList.toggle("v2mc--saved", Boolean(saved) && clean);
       if (dirty) {
-        // Ввёл, но не подтвердил — зелёная CTA зовёт нажать, подсказка предупреждает.
+        // Ввёл, но не подтвердил — зелёная CTA «Подтвердить», карточка в draft.
         confirmBtn.className = "confirm-bet-btn";
         confirmBtn.textContent = saved ? "Подтвердить ставку" : "Сделать ставку";
-        savedNote.hidden = false;
-        savedNote.className = "bet-saved-note bet-saved-note--warn";
-        savedNote.textContent = "не сохранено — нажми зелёную кнопку, иначе не зачтётся";
       } else if (saved) {
-        // Ставка принята — спокойно: серая вторичная «изменить», без призыва.
+        // Ставка принята — спокойная серая вторичная «Изменить», без призыва.
         confirmBtn.className = "confirm-bet-btn confirm-bet-btn--edit";
         confirmBtn.textContent = "Изменить ставку";
-        savedNote.hidden = false;
-        savedNote.className = "bet-saved-note";
-        savedNote.textContent = "ставка принята";
       } else {
-        // Пусто — единственная зелёная CTA «Сделать ставку», без лишнего текста.
+        // Пусто — единственная зелёная CTA «Сделать ставку».
         confirmBtn.className = "confirm-bet-btn";
         confirmBtn.textContent = "Сделать ставку";
-        savedNote.hidden = true;
-        savedNote.textContent = "";
       }
     };
 
@@ -945,12 +933,9 @@ function createMatchRowV2(match) {
         currentUser.matches[match.id] = data;
         row.classList.remove("v2mc--dirty");
         row.classList.add("v2mc--just-saved");     // короткая вспышка-«принято»
-        savedNote.hidden = false;
-        savedNote.className = "bet-saved-note";
-        savedNote.textContent = "ставка принята";
         confirmBtn.className = "confirm-bet-btn confirm-bet-btn--saved";
         confirmBtn.textContent = "Ставка принята";
-        showBetOk("Ставка принята");                // OTS-78: явный, но чистый успех
+        showBetOk("Ставка принята");                // OTS-78: явный успех — тостом, не текстом под кнопкой
         setTimeout(() => {
           row.classList.remove("v2mc--just-saved");
           confirmBtn.disabled = false;

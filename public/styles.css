@@ -1614,8 +1614,6 @@ body.design-v2 .bet-saved-note {
   color: var(--muted);
 }
 body.design-v2 .bet-saved-note--on { color: #7CFFB2; font-weight: 700; }
-/* OTS-78: черновик — ставка ещё не подтверждена */
-body.design-v2 .bet-saved-note--warn { color: var(--text); font-weight: 700; }
 
 /* Collapsible participants panel inside live "Матчи сёдня" rows */
 body.design-v2 .match-all-bets--collapsible {
@@ -2012,7 +2010,7 @@ body.design-v2 .v2mc .confirm-bet-btn--saved {
 /* OTS-78: ставка уже принята → «Изменить» спокойная, вторичная (серая), НЕ зелёный
    призыв. Зелёный CTA остаётся только там, где ставка ещё не сделана. */
 body.design-v2 .v2mc .confirm-bet-btn.confirm-bet-btn--edit {
-  height: 42px;
+  /* height/размер как у зелёной CTA — кнопка НЕ должна прыгать при смене состояния */
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
