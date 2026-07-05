@@ -1,12 +1,14 @@
-// OTS-82: переключатель на новый дизайн v3. Показывается ТОЛЬКО аккаунту Тимы
-// (timofeytst). Для всех остальных не рендерит ничего — старый дизайн не меняется.
+// OTS-82: переключатель на новый дизайн v3. Показывается ТОЛЬКО аккаунтам Тимы
+// (боевой «Актимелька» + тестовый timofeytst). Остальным не рендерит ничего —
+// старый дизайн не меняется.
 // Чисто аддитивно и в try/catch: если что-то падает, старый сайт работает как есть.
+const V3_ALLOWED_NICKS = ["актимелька", "timofeytst"];
 (async () => {
   try {
     const res = await fetch("/api/auth/me", { credentials: "same-origin" });
     if (!res.ok) return;
     const me = await res.json();
-    if (!me || (me.nickname || "").toLowerCase() !== "timofeytst") return;
+    if (!me || !V3_ALLOWED_NICKS.includes((me.nickname || "").toLowerCase())) return;
 
     const fab = document.createElement("a");
     fab.href = "/v3";

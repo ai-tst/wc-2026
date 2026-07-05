@@ -1928,10 +1928,11 @@ def index():
 
 # ── OTS-82: новый дизайн v3 — отдельный раздел ЗА ГЕЙТОМ по аккаунту Тимы ─────
 # Старый дизайн не тронут: v3 живёт в app/v3/ (вне static_folder=public), отдаётся
-# ТОЛЬКО через эти роуты и ТОЛЬКО аккаунту `timofeytst`. Любой другой (и аноним) —
+# ТОЛЬКО через эти роуты и ТОЛЬКО аккаунтам Тимы. Любой другой (и аноним) —
 # 302 на «/» (старый дизайн). Так остальные не видят ни раздела, ни его ассетов.
+# Тима на проде играет под ником «Актимелька» (не timofeytst — то тестовый).
 V3_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v3")
-V3_ALLOWED_NICK = "timofeytst"
+V3_ALLOWED_NICKS = {"актимелька", "timofeytst"}
 
 
 def _v3_allowed():
@@ -1943,7 +1944,7 @@ def _v3_allowed():
         user = db.execute("SELECT nickname FROM users WHERE id=%s", [uid]).fetchone()
     finally:
         db.close()
-    return bool(user) and (user["nickname"] or "").strip().lower() == V3_ALLOWED_NICK
+    return bool(user) and (user["nickname"] or "").strip().lower() in V3_ALLOWED_NICKS
 
 
 @app.route("/v3")
