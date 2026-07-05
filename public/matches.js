@@ -895,17 +895,25 @@ function createMatchRowV2(match) {
       row.classList.toggle("v2mc--dirty", dirty);
       row.classList.toggle("v2mc--saved", Boolean(saved) && clean);
       if (dirty) {
+        // Ввёл, но не подтвердил — зелёная CTA зовёт нажать, подсказка предупреждает.
+        confirmBtn.className = "confirm-bet-btn";
+        confirmBtn.textContent = saved ? "Подтвердить ставку" : "Сделать ставку";
+        savedNote.hidden = false;
         savedNote.className = "bet-saved-note bet-saved-note--warn";
-        savedNote.textContent = "⚠ пока НЕ принято — жми «Забетить», иначе не считается";
-        confirmBtn.textContent = saved ? "Забетить изменения ✅" : "Забетить ставку ✅";
+        savedNote.textContent = "не сохранено — нажми зелёную кнопку, иначе не зачтётся";
       } else if (saved) {
-        savedNote.className = "bet-saved-note bet-saved-note--on";
-        savedNote.textContent = "✓ ставка принята · можно менять";
+        // Ставка принята — спокойно: серая вторичная «изменить», без призыва.
+        confirmBtn.className = "confirm-bet-btn confirm-bet-btn--edit";
         confirmBtn.textContent = "Изменить ставку";
-      } else {
+        savedNote.hidden = false;
         savedNote.className = "bet-saved-note";
-        savedNote.textContent = "ставка ещё не сделана";
-        confirmBtn.textContent = "Забетить ставку ✅";
+        savedNote.textContent = "ставка принята";
+      } else {
+        // Пусто — единственная зелёная CTA «Сделать ставку», без лишнего текста.
+        confirmBtn.className = "confirm-bet-btn";
+        confirmBtn.textContent = "Сделать ставку";
+        savedNote.hidden = true;
+        savedNote.textContent = "";
       }
     };
 
@@ -937,16 +945,16 @@ function createMatchRowV2(match) {
         currentUser.matches[match.id] = data;
         row.classList.remove("v2mc--dirty");
         row.classList.add("v2mc--just-saved");     // короткая вспышка-«принято»
-        savedNote.className = "bet-saved-note bet-saved-note--on";
-        savedNote.textContent = "✓ ставка принята · можно менять";
+        savedNote.hidden = false;
+        savedNote.className = "bet-saved-note";
+        savedNote.textContent = "ставка принята";
         confirmBtn.className = "confirm-bet-btn confirm-bet-btn--saved";
-        confirmBtn.textContent = "✓ Ставка принята";
-        showBetOk("✅ Ставка принята! Красавчик");   // OTS-78: явный успех
+        confirmBtn.textContent = "Ставка принята";
+        showBetOk("Ставка принята");                // OTS-78: явный, но чистый успех
         setTimeout(() => {
           row.classList.remove("v2mc--just-saved");
-          confirmBtn.className = "confirm-bet-btn";
           confirmBtn.disabled = false;
-          refreshBetState();                        // осядет в состояние «принято»
+          refreshBetState();                        // осядет в спокойное «принято» (серая «Изменить»)
         }, 1500);
       } catch (err) {
         console.error("Failed to save prediction:", err);

@@ -2009,9 +2009,23 @@ body.design-v2 .v2mc .confirm-bet-btn--saved {
   background: var(--accent-strong);
   color: #022c22;
 }
+/* OTS-78: ставка уже принята → «Изменить» спокойная, вторичная (серая), НЕ зелёный
+   призыв. Зелёный CTA остаётся только там, где ставка ещё не сделана. */
+body.design-v2 .v2mc .confirm-bet-btn.confirm-bet-btn--edit {
+  height: 42px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+body.design-v2 .v2mc .confirm-bet-btn.confirm-bet-btn--edit:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+}
 
-/* OTS-78: карточка-черновик — приглушена + пунктирная рамка, а CTA пульсирует,
-   чтобы взгляд сам упал на «Забетить». Никаких новых цветов — только --accent. */
+/* OTS-78: карточка-черновик — приглушена + пунктирная рамка, а зелёная CTA
+   пульсирует, чтобы взгляд сам упал на неё. Никаких новых цветов — только --accent. */
 body.design-v2 .v2mc.v2mc--dirty {
   border-style: dashed;
   border-color: var(--accent);
