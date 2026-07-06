@@ -1,14 +1,15 @@
-// OTS-82: переключатель на новый дизайн v3. Показывается ТОЛЬКО аккаунтам Тимы
-// (боевой «Актимелька» + тестовый timofeytst). Остальным не рендерит ничего —
-// старый дизайн не меняется.
+// OTS-82: переключатель на новый дизайн v3. Показывается ТОЛЬКО боевому аккаунту
+// Тимы «Актимелька» — гейт по стабильному user-id (не по нику). Остальным не
+// рендерит ничего — старый дизайн не меняется. Настоящий гейт всё равно на сервере
+// (роут /v3 редиректит чужих на «/»), эта кнопка — только точка входа для Тимы.
 // Чисто аддитивно и в try/catch: если что-то падает, старый сайт работает как есть.
-const V3_ALLOWED_NICKS = ["актимелька", "timofeytst"];
+const V3_ALLOWED_UIDS = ["a12c1237-6e98-48f0-9678-9bc52a1d37cc"]; // Актимелька (боевой Тима)
 (async () => {
   try {
     const res = await fetch("/api/auth/me", { credentials: "same-origin" });
     if (!res.ok) return;
     const me = await res.json();
-    if (!me || !V3_ALLOWED_NICKS.includes((me.nickname || "").toLowerCase())) return;
+    if (!me || !V3_ALLOWED_UIDS.includes(me.id)) return;
 
     const fab = document.createElement("a");
     fab.href = "/v3";

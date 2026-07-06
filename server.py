@@ -1930,21 +1930,14 @@ def index():
 # Старый дизайн не тронут: v3 живёт в app/v3/ (вне static_folder=public), отдаётся
 # ТОЛЬКО через эти роуты и ТОЛЬКО аккаунтам Тимы. Любой другой (и аноним) —
 # 302 на «/» (старый дизайн). Так остальные не видят ни раздела, ни его ассетов.
-# Тима на проде играет под ником «Актимелька» (не timofeytst — то тестовый).
+# Гейт по user-id боевого аккаунта Тимы «Актимелька» (не по нику — ник можно
+# сменить/занять; id стабилен). Тестовый timofeytst убран — только боевой Тима.
 V3_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v3")
-V3_ALLOWED_NICKS = {"актимелька", "timofeytst"}
+V3_ALLOWED_UIDS = {"a12c1237-6e98-48f0-9678-9bc52a1d37cc"}  # Актимелька (боевой Тима)
 
 
 def _v3_allowed():
-    uid = current_user_id()
-    if not uid:
-        return False
-    db = get_db()
-    try:
-        user = db.execute("SELECT nickname FROM users WHERE id=%s", [uid]).fetchone()
-    finally:
-        db.close()
-    return bool(user) and (user["nickname"] or "").strip().lower() in V3_ALLOWED_NICKS
+    return current_user_id() in V3_ALLOWED_UIDS
 
 
 @app.route("/v3")
