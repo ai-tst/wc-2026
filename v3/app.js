@@ -563,7 +563,10 @@ function renderFeed() {
 }
 function cardVisible(card) {
   const st = card.dataset.state, active = card.dataset.active === "1";
-  if (curCountry && card.dataset.home !== curCountry && card.dataset.away !== curCountry) return false;
+  if (curCountry) {
+    const cc = flagCode(curCountry);
+    if (flagCode(card.dataset.home) !== cc && flagCode(card.dataset.away) !== cc) return false;
+  }
   if (curFilter === "live") return st === "live";
   if (curFilter === "today") return active && st !== "finished";
   if (curSub === "future") return st === "upcoming";
@@ -604,9 +607,17 @@ function defaultFilter() { return feedPool().some((m) => getMatchPhase(m) === "l
 
 // ── country picker ─────────────────────────────────────────────────────────────
 function buildCountryPicker() {
-  const names = new Set();
-  for (const m of feedPool()) { if (flagCode(m.home)) names.add(m.home); if (flagCode(m.away)) names.add(m.away); }
-  const sorted = [...names].sort((a, b) => a.localeCompare(b, "ru"));
+  // dedup by flag code — feed may carry aliases of one country (Czech Republic/Czechia)
+  const byCode = new Map();
+  for (const m of feedPool()) {
+    for (const nm of [m.home, m.away]) {
+      const code = flagCode(nm);
+      if (!code) continue;
+      const cur = byCode.get(code);
+      if (!cur || nm.localeCompare(cur, "ru") < 0) byCode.set(code, nm);
+    }
+  }
+  const sorted = [...byCode.values()].sort((a, b) => a.localeCompare(b, "ru"));
   const list = $("ctryList");
   const row = (name) => `<button class="ctry-opt${curCountry === name ? " on" : ""}" data-ctry="${esc(name)}">${flagImg(name, "ctry-opt-fl")}<span>${esc(name)}</span></button>`;
   list.innerHTML = `<button class="ctry-opt${!curCountry ? " on" : ""}" data-ctry=""><span class="ctry-opt-fl e">🌍</span><span>Все страны</span></button>` + sorted.map(row).join("");
