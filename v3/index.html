@@ -18,7 +18,7 @@
     <img class="logo" id="logo" src="/otsos-logo.png" alt="ОТСОС">
     <div class="brand"><div class="n">ОТСОС</div><div class="s">World Cup 2026</div></div>
     <div class="hspace"></div>
-    <div class="pts" id="ptsBtn"><b id="ptsVal">–</b><span>очков</span></div>
+    <div class="pts" id="ptsBtn" title="Таблица лидеров"><b id="ptsVal">–</b><span>очков</span></div>
     <button class="burger" id="burger" aria-label="Меню"><i></i></button>
   </div>
 </header>
@@ -50,6 +50,9 @@
       <button data-f="today">Сегодня</button>
       <button data-f="all">Все</button>
     </div>
+    <button class="ctry-btn" id="ctryBtn" title="Фильтр по стране">
+      <span class="ctry-fl" id="ctryFl">🌍</span><span id="ctryLabel">Страна</span><span class="chev">›</span>
+    </button>
     <label class="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
       <input id="searchInput" placeholder="Найти команду…">
@@ -69,6 +72,16 @@
 
 </div><!-- /view-feed -->
 
+<!-- ============ LEADERBOARD (ARENA) VIEW ============ -->
+<div class="view" id="view-lb">
+  <div class="backbtn" data-go="feed">‹ к матчам</div>
+  <div class="bkhead">
+    <h2>🏅 Таблица лидеров</h2>
+    <span class="mine" id="lbMine"></span>
+  </div>
+  <div id="lbList" class="lb-arena"></div>
+</div>
+
 <!-- ============ BRACKET VIEW ============ -->
 <div class="view" id="view-bracket">
   <div class="backbtn" data-go="feed">‹ к матчам</div>
@@ -76,18 +89,8 @@
     <h2>🏆 Турнирная сетка</h2>
     <span class="mine">твои очки за плей-офф: <b id="bkMine">+0</b></span>
   </div>
+  <div class="bkhint" id="bkHint"></div>
   <div class="bkscroll"><div class="bracket" id="bracket"></div></div>
-</div>
-
-<!-- ============ PROFILE VIEW ============ -->
-<div class="view" id="view-prof">
-  <div class="backbtn" data-go="feed">‹ назад</div>
-  <div class="hero" style="margin-bottom:18px"><span class="badge">Ты</span>
-    <div><h3 id="pfNick">—</h3><p id="pfSub"></p></div>
-    <div class="rank"><div class="p" id="pfPts">–</div><div class="l">очков</div></div>
-  </div>
-  <div class="sechead"><span class="t">🎯 Твои долгосрочные</span></div>
-  <div class="pcard" id="pfOutrights"></div>
 </div>
 
 </main>
@@ -95,7 +98,7 @@
 <!-- ============ RIGHT RAIL (desktop) ============ -->
 <aside class="rail">
   <div class="card">
-    <h4>🏅 Таблица лидеров</h4>
+    <h4>🏅 Таблица лидеров<span class="more" data-go="lb">вся →</span></h4>
     <div id="railLb"></div>
   </div>
   <div class="card">
@@ -113,19 +116,19 @@
   <div class="mh"><img src="/otsos-logo.png"><div><div class="n">ОТСОС</div><div class="s">World Cup 2026</div></div></div>
   <div class="mi on" data-v="feed"><span class="ico">⚽</span>Матчи</div>
   <div class="mi" data-v="live"><span class="ico">📡</span>Лайв<span class="live-d" id="menuLiveDot" style="display:none"></span></div>
+  <div class="mi" data-v="lb"><span class="ico">🏅</span>Таблица лидеров</div>
   <div class="mi" data-v="bracket"><span class="ico">🏆</span>Турнирная сетка</div>
-  <div class="mi" data-v="prof"><span class="ico">👤</span>Профиль</div>
   <div class="spacer"></div>
   <div class="mi" data-v="old" style="color:var(--muted)"><span class="ico">↩︎</span>Вернуться на старый дизайн</div>
   <div class="mi casino" id="casinoBtn"><span class="ico">🎰</span>Режим казика</div>
 </nav>
 
-<!-- ============ MESSI SHEET ============ -->
-<div class="sheet" id="sheet">
+<!-- ============ COUNTRY PICKER SHEET ============ -->
+<div class="picker-scrim" id="ctryScrim"></div>
+<div class="picker" id="ctryPicker">
   <div class="grab"></div>
-  <h4><img src="/messi-ai.webp">Месси думает 🐐</h4>
-  <div class="sub" id="messiSub">спросил у AI — кого брать лучшим игроком</div>
-  <div class="mchat" id="mchat"></div>
+  <div class="picker-h">Фильтр по стране</div>
+  <div class="picker-body" id="ctryList"></div>
 </div>
 
 <!-- ============ TOAST ============ -->
