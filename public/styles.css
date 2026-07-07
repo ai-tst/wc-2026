@@ -2880,7 +2880,8 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
 }
 .v2mc-messi--adv:focus-visible { outline-color: var(--adv, #a855f7); }
 
-/* Шапка «Советует: [ава] Имя РОЛЬ · сменить» внутри панели подсказки */
+/* Шапка «Советует: [ава] Имя РОЛЬ» внутри панели подсказки — статичная подпись.
+   Сменить советника = тап по нейронке в углу карточки (открывает пикер). */
 .v2mc-adv-head {
   display: flex; align-items: center; gap: 7px;
   width: 100%; margin: 0 0 10px; padding: 7px 10px;
@@ -2890,11 +2891,8 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
     linear-gradient(var(--bg-soft), var(--bg-soft)) padding-box,
     linear-gradient(135deg, color-mix(in srgb, var(--adv, #a855f7) 70%, transparent), transparent) border-box;
   color: var(--text);
-  font-family: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  font-family: inherit; font-size: 12.5px; text-align: left;
 }
-.v2mc-adv-head:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0, 0, 0, .3); }
-.v2mc-adv-head:focus-visible { outline: 2px solid var(--adv, #a855f7); outline-offset: 2px; }
 .v2mc-adv-head-lbl { color: var(--muted); }
 .v2mc-adv-head-ava {
   width: 26px; height: 26px; flex: none;
@@ -2905,11 +2903,6 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
   font-family: "Russo One", var(--font-main);
   font-size: 9.5px; letter-spacing: .4px; text-transform: uppercase;
   color: var(--adv, #a855f7);
-}
-.v2mc-adv-head-swap {
-  margin-left: auto; flex: none;
-  font-size: 11px; color: var(--muted);
-  border-bottom: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent);
 }
 
 /* ── Модалка-сетка «Выбери, кто советует» ─────────────────────────────────── */

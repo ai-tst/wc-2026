@@ -745,17 +745,21 @@ function setSelectedAdvisor(key) {
   document.dispatchEvent(new CustomEvent("otsos:advisor", { detail: key }));
 }
 
-// Единая модалка-сетка «Выбери, кто советует» (переиспользуется на все карточки).
+// Единая модалка-сетка «От кого ждёшь?» (переиспользуется на все карточки).
+// Правка Тимы (OTS-90): пикер открывается ПО КЛИКУ на нейронку и сразу спрашивает,
+// от кого ждём — выбор тут же уходит именно этому советнику. Кнопки «сменить» нет.
 let _advisorPickerEl = null;
-function openAdvisorPicker() {
+let _advisorPickCb = null;   // колбэк текущего открытия: (advisorKey) => void
+function openAdvisorPicker(onPick) {
+  _advisorPickCb = typeof onPick === "function" ? onPick : null;
   if (!_advisorPickerEl) {
     const overlay = document.createElement("div");
     overlay.className = "adv-picker-overlay";
     overlay.hidden = true;
     overlay.innerHTML =
-      `<div class="adv-picker" role="dialog" aria-modal="true" aria-label="Выбери, кто советует">
-         <h3 class="adv-picker-title">Выбери, кто советует <span aria-hidden="true">🎙️</span></h3>
-         <p class="adv-picker-sub">Каждый видит матч по-своему. Тапни — подсказка перестроится под него.</p>
+      `<div class="adv-picker" role="dialog" aria-modal="true" aria-label="От кого ждёшь подсказку">
+         <h3 class="adv-picker-title">От кого ждёшь? <span aria-hidden="true">🎙️</span></h3>
+         <p class="adv-picker-sub">Тапни советника — он сразу разберёт этот матч в своём стиле.</p>
          <div class="adv-grid"></div>
          <button type="button" class="adv-picker-close">Закрыть</button>
        </div>`;
@@ -770,7 +774,12 @@ function openAdvisorPicker() {
         `<span class="adv-tile-ring"><img class="adv-tile-ava" src="${advisorImg(a.key)}" alt="" width="84" height="84" draggable="false" loading="lazy"></span>
          <span class="adv-tile-name">${escapeHtml(a.name)}</span>
          <span class="adv-tile-role">${escapeHtml(a.role)}</span>`;
-      tile.addEventListener("click", () => { setSelectedAdvisor(a.key); closeAdvisorPicker(); });
+      tile.addEventListener("click", () => {
+        const cb = _advisorPickCb;
+        setSelectedAdvisor(a.key);   // запомним последнего (лицо на кнопке)
+        closeAdvisorPicker();
+        if (cb) cb(a.key);           // и сразу дёрнем подсказку именно у него
+      });
       grid.appendChild(tile);
     });
     overlay.querySelector(".adv-picker-close").addEventListener("click", closeAdvisorPicker);
@@ -789,6 +798,7 @@ function openAdvisorPicker() {
 }
 function closeAdvisorPicker() {
   if (_advisorPickerEl) _advisorPickerEl.hidden = true;
+  _advisorPickCb = null;
   document.body.classList.remove("adv-picker-open");
 }
 
@@ -809,13 +819,10 @@ function mountMessiHint(row, match) {
   panel.hidden = true;
   row.querySelector(".v2rc-hero").insertAdjacentElement("afterend", panel);
 
-  // Шапка «Советует: [ава] Имя РОЛЬ · сменить» — только в режиме пикера, тап → модалка.
-  const header = gated ? document.createElement("button") : null;
-  if (header) {
-    header.type = "button";
-    header.className = "v2mc-adv-head";
-    header.addEventListener("click", (e) => { e.stopPropagation(); openAdvisorPicker(); });
-  }
+  // Шапка «Советует: [ава] Имя РОЛЬ» — статичная подпись-идентичность (не кнопка).
+  // Сменить советника = тап по нейронке в углу → пикер (правка Тимы, без «сменить»).
+  const header = gated ? document.createElement("div") : null;
+  if (header) header.className = "v2mc-adv-head";
   const body = document.createElement("div");
   body.className = "v2mc-messi-body";
   if (header) panel.appendChild(header);
@@ -830,8 +837,8 @@ function mountMessiHint(row, match) {
     const a = ADVISOR_BY_KEY[advisor];
     if (gated) {
       btn.style.setProperty("--adv", `var(--adv-${a.key})`);
-      btn.setAttribute("aria-label", `Подсказка от ${a.name}`);
-      btn.title = `Советует ${a.name} · тап — подсказка`;
+      btn.setAttribute("aria-label", "Спросить совет — выбрать нейронку");
+      btn.title = "Тап — выбрать, кто подскажет";
       btn.innerHTML = `<img class="v2mc-messi-ava" src="${advisorImg(a.key)}" alt="" width="42" height="42" draggable="false">`;
     } else {
       btn.setAttribute("aria-label", "Подсказка от Месси");
@@ -847,8 +854,7 @@ function mountMessiHint(row, match) {
       `<span class="v2mc-adv-head-lbl">Советует:</span>` +
       `<img class="v2mc-adv-head-ava" src="${advisorImg(a.key)}" alt="" width="26" height="26" draggable="false">` +
       `<b class="v2mc-adv-head-name">${escapeHtml(a.name)}</b>` +
-      `<span class="v2mc-adv-head-role">${escapeHtml(a.role)}</span>` +
-      `<span class="v2mc-adv-head-swap">сменить</span>`;
+      `<span class="v2mc-adv-head-role">${escapeHtml(a.role)}</span>`;
   };
 
   const showLoading = () => {
@@ -894,29 +900,46 @@ function mountMessiHint(row, match) {
     }
   };
 
+  // Выбрать советника для ЭТОЙ карточки и сразу дёрнуть его подсказку.
+  const pickAndLoad = (key) => {
+    if (!ADVISOR_BY_KEY[key]) return;
+    advisor = key;
+    paintBtn();
+    paintHeader();
+    panel.hidden = false;
+    btn.classList.add("v2mc-messi--open");
+    load();
+  };
+
   paintBtn();
   paintHeader();
 
   btn.addEventListener("click", () => {
-    // Повторный клик — просто сворачиваем/разворачиваем (бэк не дёргаем)
-    if (!panel.hidden && !loading) { panel.hidden = true; btn.classList.remove("v2mc-messi--open"); return; }
-    panel.hidden = false;
-    btn.classList.add("v2mc-messi--open");
-    load();
+    if (loading) return;                       // идёт запрос — не мешаем
+    if (!gated) {
+      // Легаси-Месси: старый тумблер разворачивания подсказки.
+      if (!panel.hidden) { panel.hidden = true; btn.classList.remove("v2mc-messi--open"); return; }
+      panel.hidden = false;
+      btn.classList.add("v2mc-messi--open");
+      load();
+      return;
+    }
+    // Правка Тимы: клик по нейронке → сразу спрашиваем «от кого ждёшь?»,
+    // выбранный советник тут же разбирает матч. Кнопки «сменить» нет.
+    openAdvisorPicker(pickAndLoad);
   });
 
-  // OTS-90: сменили советника в пикере → перекрасить лицо; раскрытую карточку сразу
-  // перестроить под нового (кэш у каждого советника свой). Слушатель сам снимается,
-  // когда карточка отсоединена (ре-рендер списка матчей) — без утечки.
+  // Обновляем лицо на кнопке, если советника сменили из пикера на другой карточке
+  // (единый «последний выбранный»). Свою подсказку НЕ перезагружаем — только тот
+  // матч, где реально ткнули. Слушатель сам снимается при отсоединении карточки.
   if (gated) {
     const onAdvisorChange = (e) => {
       if (!row.isConnected) { document.removeEventListener("otsos:advisor", onAdvisorChange); return; }
       const key = e.detail;
-      if (!ADVISOR_BY_KEY[key] || key === advisor) return;
-      advisor = key;
+      if (!ADVISOR_BY_KEY[key] || key === advisor || !panel.hidden) return;
+      advisor = key;   // подтягиваем лицо только у нетронутых (свёрнутых) карточек
       paintBtn();
       paintHeader();
-      if (!panel.hidden) load();
     };
     document.addEventListener("otsos:advisor", onAdvisorChange);
   }
