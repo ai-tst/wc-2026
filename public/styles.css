@@ -11,6 +11,18 @@
   --danger: #ef4444;
   --radius-lg: 14px;
   --radius-md: 10px;
+  /* OTS-90: крупные радиусы под оверлей-пикер советников (осознанно > --radius-lg) */
+  --radius-adv-tile: 16px;
+  --radius-adv-modal: 22px;
+  /* OTS-90: система идентичности аватарок-советников (--adv-*), не хардкодь в компонентах */
+  --adv-messi:   #2dd4bf; /* GOAT · ледяной teal */
+  --adv-ronaldo: #f5c518; /* SIUUU · золото */
+  --adv-mbappe:  #f43f5e; /* СКОРОСТЬ · красно-розовый */
+  --adv-yamal:   #ec4899; /* ВУНДЕР · розово-магента */
+  --adv-kane:    #94a3b8; /* ПО ЦИФРАМ · стальной */
+  --adv-haaland: #38bdf8; /* МАШИНА · ледяной викинг */
+  --adv-buster:  #a855f7; /* СТРИМЕР · фиолет */
+  --adv-speed:   #f97316; /* ХАОС · оранж */
   --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.85);
   --transition-fast: 0.18s ease-out;
   --font-main: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
@@ -2846,6 +2858,137 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
   .v2mc-messi, .v2mc-messi--busy, .v2mc-messi-think, .v2mc-messi-text, .v2mc-messi-panel {
     animation: none;
   }
+}
+
+/* ============================================================================
+   OTS-90 — Пикер «Советники» (вариант C) + аватарки-стикеры.
+   Гейт на Актимельку — только у неё рендерится .v2mc-messi--adv и модалка.
+   Цвет-идентичность каждого советника берём из --adv (проставляет JS: var(--adv-<key>)).
+   Зелёный --accent не трогаем (тут нет CTA), AI-акцент — фиолетовый, как в OTS-43.
+   ============================================================================ */
+/* Угловая кнопка в режиме советника: у PNG уже запечён свой круг+обводка+свечение+
+   бейдж, поэтому убираем градиентную рамку и показываем аватар целиком (contain),
+   а «дыхание» тонируем под характер советника. */
+.v2mc-messi--adv {
+  border: none;
+  background: none;
+  --ai-glow: color-mix(in srgb, var(--adv, #a855f7) 55%, transparent);
+}
+.v2mc-messi--adv .v2mc-messi-ava {
+  object-fit: contain;
+  object-position: center;
+}
+.v2mc-messi--adv:focus-visible { outline-color: var(--adv, #a855f7); }
+
+/* Шапка «Советует: [ава] Имя РОЛЬ · сменить» внутри панели подсказки */
+.v2mc-adv-head {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; margin: 0 0 10px; padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--bg-soft), var(--bg-soft)) padding-box,
+    linear-gradient(135deg, color-mix(in srgb, var(--adv, #a855f7) 70%, transparent), transparent) border-box;
+  color: var(--text);
+  font-family: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.v2mc-adv-head:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0, 0, 0, .3); }
+.v2mc-adv-head:focus-visible { outline: 2px solid var(--adv, #a855f7); outline-offset: 2px; }
+.v2mc-adv-head-lbl { color: var(--muted); }
+.v2mc-adv-head-ava {
+  width: 26px; height: 26px; flex: none;
+  object-fit: contain; border-radius: 50%;
+}
+.v2mc-adv-head-name { font-weight: 700; }
+.v2mc-adv-head-role {
+  font-family: "Russo One", var(--font-main);
+  font-size: 9.5px; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--adv, #a855f7);
+}
+.v2mc-adv-head-swap {
+  margin-left: auto; flex: none;
+  font-size: 11px; color: var(--muted);
+  border-bottom: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+/* ── Модалка-сетка «Выбери, кто советует» ─────────────────────────────────── */
+.adv-picker-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px
+           calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(3, 6, 18, .72);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: advFade .2s ease-out;
+  overflow-y: auto;
+}
+.adv-picker-overlay[hidden] { display: none; }
+@keyframes advFade { from { opacity: 0; } to { opacity: 1; } }
+.adv-picker {
+  width: 100%; max-width: 520px; margin: auto;
+  padding: 22px 20px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-adv-modal);
+  background:
+    linear-gradient(var(--bg-soft), var(--bg-soft)) padding-box,
+    linear-gradient(150deg, rgba(168, 85, 247, .55), rgba(99, 102, 241, .4)) border-box;
+  box-shadow: var(--shadow-soft), 0 0 40px rgba(124, 58, 237, .18);
+  animation: advPop .28s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes advPop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.adv-picker-title {
+  margin: 0 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--text);
+}
+.adv-picker-sub { margin: 0 0 18px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.adv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)); /* minmax(0,…): без mobile-оверфлоу */
+  gap: 8px;
+}
+.adv-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 12px 6px 11px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-adv-tile);
+  background: var(--bg-softer);
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast),
+    box-shadow var(--transition-fast), background var(--transition-fast);
+}
+.adv-tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--adv) 55%, var(--border)); }
+.adv-tile:focus-visible { outline: 2px solid var(--adv); outline-offset: 2px; }
+.adv-tile--active {
+  border-color: var(--adv);
+  background: color-mix(in srgb, var(--adv) 12%, var(--bg-softer));
+  box-shadow: 0 0 0 1px var(--adv), 0 8px 22px color-mix(in srgb, var(--adv) 30%, transparent);
+}
+.adv-tile-ring { display: block; line-height: 0; }
+.adv-tile-ava {
+  width: clamp(56px, 19vw, 84px); height: auto; aspect-ratio: 1 / 1;
+  object-fit: contain; display: block;
+}
+.adv-tile-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.adv-tile-role {
+  font-family: "Russo One", var(--font-main);
+  font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--adv); line-height: 1; text-align: center;
+}
+.adv-picker-close {
+  width: 100%; margin-top: 16px; padding: 14px;
+  border: 1px dashed var(--border); border-radius: var(--radius-md);
+  background: none; color: var(--text);
+  font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.adv-picker-close:hover { border-color: var(--muted); background: rgba(255, 255, 255, .03); }
+@media (max-width: 380px) {
+  .adv-picker-title { font-size: 21px; }
+  .adv-tile-name { font-size: 13.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adv-picker-overlay, .adv-picker { animation: none; }
+  .adv-tile:hover, .v2mc-adv-head:hover { transform: none; }
 }
 
 /* ── OTS-54: «Показать все» — раскрытие полного раунда плей-офф под списком ─────

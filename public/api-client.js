@@ -41,5 +41,8 @@ export const apiGetLeaderboard = () => get("/api/leaderboard");
 // Player ratings for a completed match { playerName: rating }
 export const apiGetMatchRatings = (matchId) => get(`/api/match-ratings/${matchId}`);
 
-// OTS-43 — AI hint from Messi for a match → { hint, cached }
-export const apiMatchHint = (matchId) => post(`/api/match-hint/${matchId}`);
+// OTS-43 — AI hint for a match → { hint, cached }
+// OTS-90 — optional advisor key (messi|ronaldo|mbappe|yamal|kane|haaland|buster|speed);
+// без advisor бэк отвечает Месси (поведение по умолчанию, как раньше).
+export const apiMatchHint = (matchId, advisor) =>
+  post(`/api/match-hint/${matchId}`, advisor ? { advisor } : undefined);

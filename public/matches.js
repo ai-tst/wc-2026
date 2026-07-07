@@ -705,68 +705,186 @@ const MESSI_LOADING = [
   "ГОАТ на проводе…",
 ];
 
+// ── OTS-90: пикер «Советники» (вариант C). 8 характеров дают ту же подсказку ────
+// своим голосом. ГЕЙТ: пикер и не-Месси советники — ТОЛЬКО у боевого аккаунта
+// Тимы «Актимелька» (стабильный uid). Остальным остаётся ровно старый одиночный
+// Месси. Настоящий гейт дублируется на сервере (не-Месси форсится в Месси чужим).
+const ADVISOR_GATE_UID = "a12c1237-6e98-48f0-9678-9bc52a1d37cc";
+const ADVISORS = [
+  { key: "messi",   name: "Месси",   role: "GOAT" },
+  { key: "ronaldo", name: "Роналду", role: "SIUUU" },
+  { key: "mbappe",  name: "Мбаппе",  role: "СКОРОСТЬ" },
+  { key: "yamal",   name: "Ямаль",   role: "ВУНДЕР" },
+  { key: "kane",    name: "Кейн",    role: "ПО ЦИФРАМ" },
+  { key: "haaland", name: "Холланд", role: "МАШИНА" },
+  { key: "buster",  name: "Бустер",  role: "СТРИМЕР" },
+  { key: "speed",   name: "Speed",   role: "ХАОС" },
+];
+const ADVISOR_BY_KEY = Object.fromEntries(ADVISORS.map((a) => [a.key, a]));
+const advisorImg = (key) => `/avatar-${key}.png`;
+const advisorPickerEnabled = () => currentUser?.id === ADVISOR_GATE_UID;
+const ADVISOR_LOADING = (key) => {
+  const a = ADVISOR_BY_KEY[key] || ADVISOR_BY_KEY.messi;
+  return [
+    `${a.name} смотрит запись…`,
+    `${a.name} пробивает инфу…`,
+    `${a.name} листает составы…`,
+    `${a.name} на проводе…`,
+  ];
+};
+
+const ADVISOR_STORE_KEY = "otsos_advisor";
+function getSelectedAdvisor() {
+  try { const k = localStorage.getItem(ADVISOR_STORE_KEY); if (ADVISOR_BY_KEY[k]) return k; } catch {}
+  return "messi";
+}
+function setSelectedAdvisor(key) {
+  if (!ADVISOR_BY_KEY[key]) return;
+  try { localStorage.setItem(ADVISOR_STORE_KEY, key); } catch {}
+  // все смонтированные карточки слушают это и перекрашивают лицо/подсказку
+  document.dispatchEvent(new CustomEvent("otsos:advisor", { detail: key }));
+}
+
+// Единая модалка-сетка «Выбери, кто советует» (переиспользуется на все карточки).
+let _advisorPickerEl = null;
+function openAdvisorPicker() {
+  if (!_advisorPickerEl) {
+    const overlay = document.createElement("div");
+    overlay.className = "adv-picker-overlay";
+    overlay.hidden = true;
+    overlay.innerHTML =
+      `<div class="adv-picker" role="dialog" aria-modal="true" aria-label="Выбери, кто советует">
+         <h3 class="adv-picker-title">Выбери, кто советует <span aria-hidden="true">🎙️</span></h3>
+         <p class="adv-picker-sub">Каждый видит матч по-своему. Тапни — подсказка перестроится под него.</p>
+         <div class="adv-grid"></div>
+         <button type="button" class="adv-picker-close">Закрыть</button>
+       </div>`;
+    const grid = overlay.querySelector(".adv-grid");
+    ADVISORS.forEach((a) => {
+      const tile = document.createElement("button");
+      tile.type = "button";
+      tile.className = "adv-tile";
+      tile.dataset.key = a.key;
+      tile.style.setProperty("--adv", `var(--adv-${a.key})`);
+      tile.innerHTML =
+        `<span class="adv-tile-ring"><img class="adv-tile-ava" src="${advisorImg(a.key)}" alt="" width="84" height="84" draggable="false" loading="lazy"></span>
+         <span class="adv-tile-name">${escapeHtml(a.name)}</span>
+         <span class="adv-tile-role">${escapeHtml(a.role)}</span>`;
+      tile.addEventListener("click", () => { setSelectedAdvisor(a.key); closeAdvisorPicker(); });
+      grid.appendChild(tile);
+    });
+    overlay.querySelector(".adv-picker-close").addEventListener("click", closeAdvisorPicker);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeAdvisorPicker(); });
+    document.addEventListener("keydown", (e) => {
+      if (!overlay.hidden && e.key === "Escape") closeAdvisorPicker();
+    });
+    document.body.appendChild(overlay);
+    _advisorPickerEl = overlay;
+  }
+  const sel = getSelectedAdvisor();
+  _advisorPickerEl.querySelectorAll(".adv-tile").forEach((t) =>
+    t.classList.toggle("adv-tile--active", t.dataset.key === sel));
+  _advisorPickerEl.hidden = false;
+  document.body.classList.add("adv-picker-open");
+}
+function closeAdvisorPicker() {
+  if (_advisorPickerEl) _advisorPickerEl.hidden = true;
+  document.body.classList.remove("adv-picker-open");
+}
+
 function mountMessiHint(row, match) {
+  // OTS-90: для Актимельки — пикер советников; всем остальным — старый одиночный Месси.
+  const gated = advisorPickerEnabled();
+  let advisor = gated ? getSelectedAdvisor() : "messi";
+
   // Кнопка-аватар в углу карточки
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "v2mc-messi";
-  btn.setAttribute("aria-label", "Подсказка от Месси");
-  btn.title = "Подсказка от Месси";
-  btn.innerHTML = `<img class="v2mc-messi-ava" src="/messi-ai.webp" alt="" width="42" height="42" draggable="false"><span class="v2mc-messi-ai">AI</span>`;
+  btn.className = "v2mc-messi" + (gated ? " v2mc-messi--adv" : "");
   row.appendChild(btn);
 
-  // Панель с подсказкой (под шапкой карточки)
+  // Панель с подсказкой (под шапкой карточки): [шапка «Советует»] + тело-состояние
   const panel = document.createElement("div");
   panel.className = "v2mc-messi-panel";
   panel.hidden = true;
   row.querySelector(".v2rc-hero").insertAdjacentElement("afterend", panel);
 
-  let cached = null;     // текст подсказки (клиентский кэш на повторный тык)
+  // Шапка «Советует: [ава] Имя РОЛЬ · сменить» — только в режиме пикера, тап → модалка.
+  const header = gated ? document.createElement("button") : null;
+  if (header) {
+    header.type = "button";
+    header.className = "v2mc-adv-head";
+    header.addEventListener("click", (e) => { e.stopPropagation(); openAdvisorPicker(); });
+  }
+  const body = document.createElement("div");
+  body.className = "v2mc-messi-body";
+  if (header) panel.appendChild(header);
+  panel.appendChild(body);
+
+  const cache = {};      // {advisorKey: hintText} — повторный тык не дёргает бэк
   let loading = false;
   let loopTimer = null;
-
   const stopLoop = () => { if (loopTimer) { clearInterval(loopTimer); loopTimer = null; } };
 
-  const showLoading = () => {
-    panel.className = "v2mc-messi-panel v2mc-messi-panel--loading";
-    let i = 0;
-    panel.innerHTML = `<img class="v2mc-messi-think" src="/messi-ai.webp" alt="" width="26" height="26" draggable="false"><span class="v2mc-messi-text"></span>`;
-    const txt = panel.querySelector(".v2mc-messi-text");
-    txt.textContent = MESSI_LOADING[0];
-    loopTimer = setInterval(() => {
-      i = (i + 1) % MESSI_LOADING.length;
-      txt.textContent = MESSI_LOADING[i];
-    }, 1800);
+  const paintBtn = () => {
+    const a = ADVISOR_BY_KEY[advisor];
+    if (gated) {
+      btn.style.setProperty("--adv", `var(--adv-${a.key})`);
+      btn.setAttribute("aria-label", `Подсказка от ${a.name}`);
+      btn.title = `Советует ${a.name} · тап — подсказка`;
+      btn.innerHTML = `<img class="v2mc-messi-ava" src="${advisorImg(a.key)}" alt="" width="42" height="42" draggable="false">`;
+    } else {
+      btn.setAttribute("aria-label", "Подсказка от Месси");
+      btn.title = "Подсказка от Месси";
+      btn.innerHTML = `<img class="v2mc-messi-ava" src="/messi-ai.webp" alt="" width="42" height="42" draggable="false"><span class="v2mc-messi-ai">AI</span>`;
+    }
+  };
+  const paintHeader = () => {
+    if (!header) return;
+    const a = ADVISOR_BY_KEY[advisor];
+    header.style.setProperty("--adv", `var(--adv-${a.key})`);
+    header.innerHTML =
+      `<span class="v2mc-adv-head-lbl">Советует:</span>` +
+      `<img class="v2mc-adv-head-ava" src="${advisorImg(a.key)}" alt="" width="26" height="26" draggable="false">` +
+      `<b class="v2mc-adv-head-name">${escapeHtml(a.name)}</b>` +
+      `<span class="v2mc-adv-head-role">${escapeHtml(a.role)}</span>` +
+      `<span class="v2mc-adv-head-swap">сменить</span>`;
   };
 
+  const showLoading = () => {
+    panel.classList.remove("v2mc-messi-panel--done", "v2mc-messi-panel--err");
+    panel.classList.add("v2mc-messi-panel--loading");
+    body.innerHTML = `<img class="v2mc-messi-think" src="${gated ? advisorImg(advisor) : "/messi-ai.webp"}" alt="" width="26" height="26" draggable="false"><span class="v2mc-messi-text"></span>`;
+    const txt = body.querySelector(".v2mc-messi-text");
+    const lines = gated ? ADVISOR_LOADING(advisor) : MESSI_LOADING;
+    let i = 0; txt.textContent = lines[0];
+    loopTimer = setInterval(() => { i = (i + 1) % lines.length; txt.textContent = lines[i]; }, 1800);
+  };
   const showHint = (text) => {
     stopLoop();
-    panel.className = "v2mc-messi-panel v2mc-messi-panel--done";
-    panel.innerHTML = `<div class="v2mc-messi-quote"></div>`;
-    panel.querySelector(".v2mc-messi-quote").textContent = text;  // textContent — без HTML-инъекций
+    panel.classList.remove("v2mc-messi-panel--loading", "v2mc-messi-panel--err");
+    panel.classList.add("v2mc-messi-panel--done");
+    body.innerHTML = `<div class="v2mc-messi-quote"></div>`;
+    body.querySelector(".v2mc-messi-quote").textContent = text;  // textContent — без HTML-инъекций
   };
-
   const showError = (msg) => {
     stopLoop();
-    panel.className = "v2mc-messi-panel v2mc-messi-panel--err";
-    panel.innerHTML = `<div class="v2mc-messi-quote"></div>`;
-    panel.querySelector(".v2mc-messi-quote").textContent =
-      msg || "Лео отвлёкся на Кубок, попробуй ещё раз 🏆";
+    panel.classList.remove("v2mc-messi-panel--loading", "v2mc-messi-panel--done");
+    panel.classList.add("v2mc-messi-panel--err");
+    body.innerHTML = `<div class="v2mc-messi-quote"></div>`;
+    body.querySelector(".v2mc-messi-quote").textContent =
+      msg || "Отвлёкся на Кубок, попробуй ещё раз 🏆";
   };
 
-  btn.addEventListener("click", async () => {
-    // Повторный клик — просто сворачиваем/разворачиваем (бэк не дёргаем)
-    if (!panel.hidden && !loading) { panel.hidden = true; btn.classList.remove("v2mc-messi--open"); return; }
-    panel.hidden = false;
-    btn.classList.add("v2mc-messi--open");
-    if (cached) { showHint(cached); return; }
+  const load = async () => {
+    if (cache[advisor]) { showHint(cache[advisor]); return; }
     if (loading) return;
     loading = true;
     btn.classList.add("v2mc-messi--busy");
     showLoading();
     try {
-      const { hint } = await apiMatchHint(match.id);
-      cached = hint;
+      const { hint } = await apiMatchHint(match.id, gated ? advisor : undefined);
+      cache[advisor] = hint;
       showHint(hint);
     } catch (err) {
       showError(err && err.message);
@@ -774,7 +892,34 @@ function mountMessiHint(row, match) {
       loading = false;
       btn.classList.remove("v2mc-messi--busy");
     }
+  };
+
+  paintBtn();
+  paintHeader();
+
+  btn.addEventListener("click", () => {
+    // Повторный клик — просто сворачиваем/разворачиваем (бэк не дёргаем)
+    if (!panel.hidden && !loading) { panel.hidden = true; btn.classList.remove("v2mc-messi--open"); return; }
+    panel.hidden = false;
+    btn.classList.add("v2mc-messi--open");
+    load();
   });
+
+  // OTS-90: сменили советника в пикере → перекрасить лицо; раскрытую карточку сразу
+  // перестроить под нового (кэш у каждого советника свой). Слушатель сам снимается,
+  // когда карточка отсоединена (ре-рендер списка матчей) — без утечки.
+  if (gated) {
+    const onAdvisorChange = (e) => {
+      if (!row.isConnected) { document.removeEventListener("otsos:advisor", onAdvisorChange); return; }
+      const key = e.detail;
+      if (!ADVISOR_BY_KEY[key] || key === advisor) return;
+      advisor = key;
+      paintBtn();
+      paintHeader();
+      if (!panel.hidden) load();
+    };
+    document.addEventListener("otsos:advisor", onAdvisorChange);
+  }
 }
 
 function createMatchRowV2(match) {
