@@ -813,19 +813,16 @@ function mountMessiHint(row, match) {
   btn.className = "v2mc-messi" + (gated ? " v2mc-messi--adv" : "");
   row.appendChild(btn);
 
-  // Панель с подсказкой (под шапкой карточки): [шапка «Советует»] + тело-состояние
+  // Панель с подсказкой (под шапкой карточки) — только тело-состояние.
+  // Правка Тимы: строку «Советует: Имя РОЛЬ» убрали — она дублировала имя
+  // (лицо на кнопке + имя в тексте загрузки/ответе и так его несут).
   const panel = document.createElement("div");
   panel.className = "v2mc-messi-panel";
   panel.hidden = true;
   row.querySelector(".v2rc-hero").insertAdjacentElement("afterend", panel);
 
-  // Шапка «Советует: [ава] Имя РОЛЬ» — статичная подпись-идентичность (не кнопка).
-  // Сменить советника = тап по нейронке в углу → пикер (правка Тимы, без «сменить»).
-  const header = gated ? document.createElement("div") : null;
-  if (header) header.className = "v2mc-adv-head";
   const body = document.createElement("div");
   body.className = "v2mc-messi-body";
-  if (header) panel.appendChild(header);
   panel.appendChild(body);
 
   const cache = {};      // {advisorKey: hintText} — повторный тык не дёргает бэк
@@ -846,17 +843,6 @@ function mountMessiHint(row, match) {
       btn.innerHTML = `<img class="v2mc-messi-ava" src="/messi-ai.webp" alt="" width="42" height="42" draggable="false"><span class="v2mc-messi-ai">AI</span>`;
     }
   };
-  const paintHeader = () => {
-    if (!header) return;
-    const a = ADVISOR_BY_KEY[advisor];
-    header.style.setProperty("--adv", `var(--adv-${a.key})`);
-    header.innerHTML =
-      `<span class="v2mc-adv-head-lbl">Советует:</span>` +
-      `<img class="v2mc-adv-head-ava" src="${advisorImg(a.key)}" alt="" width="26" height="26" draggable="false">` +
-      `<b class="v2mc-adv-head-name">${escapeHtml(a.name)}</b>` +
-      `<span class="v2mc-adv-head-role">${escapeHtml(a.role)}</span>`;
-  };
-
   const showLoading = () => {
     panel.classList.remove("v2mc-messi-panel--done", "v2mc-messi-panel--err");
     panel.classList.add("v2mc-messi-panel--loading");
@@ -905,14 +891,12 @@ function mountMessiHint(row, match) {
     if (!ADVISOR_BY_KEY[key]) return;
     advisor = key;
     paintBtn();
-    paintHeader();
     panel.hidden = false;
     btn.classList.add("v2mc-messi--open");
     load();
   };
 
   paintBtn();
-  paintHeader();
 
   btn.addEventListener("click", () => {
     if (loading) return;                       // идёт запрос — не мешаем
@@ -939,7 +923,6 @@ function mountMessiHint(row, match) {
       if (!ADVISOR_BY_KEY[key] || key === advisor || !panel.hidden) return;
       advisor = key;   // подтягиваем лицо только у нетронутых (свёрнутых) карточек
       paintBtn();
-      paintHeader();
     };
     document.addEventListener("otsos:advisor", onAdvisorChange);
   }

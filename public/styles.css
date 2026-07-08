@@ -2880,30 +2880,8 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
 }
 .v2mc-messi--adv:focus-visible { outline-color: var(--adv, #a855f7); }
 
-/* Шапка «Советует: [ава] Имя РОЛЬ» внутри панели подсказки — статичная подпись.
-   Сменить советника = тап по нейронке в углу карточки (открывает пикер). */
-.v2mc-adv-head {
-  display: flex; align-items: center; gap: 7px;
-  width: 100%; margin: 0 0 10px; padding: 7px 10px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background:
-    linear-gradient(var(--bg-soft), var(--bg-soft)) padding-box,
-    linear-gradient(135deg, color-mix(in srgb, var(--adv, #a855f7) 70%, transparent), transparent) border-box;
-  color: var(--text);
-  font-family: inherit; font-size: 12.5px; text-align: left;
-}
-.v2mc-adv-head-lbl { color: var(--muted); }
-.v2mc-adv-head-ava {
-  width: 26px; height: 26px; flex: none;
-  object-fit: contain; border-radius: 50%;
-}
-.v2mc-adv-head-name { font-weight: 700; }
-.v2mc-adv-head-role {
-  font-family: "Russo One", var(--font-main);
-  font-size: 9.5px; letter-spacing: .4px; text-transform: uppercase;
-  color: var(--adv, #a855f7);
-}
+/* (Правка Тимы OTS-90) Строку-шапку «Советует: Имя РОЛЬ» убрали — дублировала имя
+   с текстом загрузки/ответа. Идентичность несут лицо на кнопке + текст подсказки. */
 
 /* ── Модалка-сетка «Выбери, кто советует» ─────────────────────────────────── */
 .adv-picker-overlay {
@@ -2981,7 +2959,7 @@ body.design-v2 .v2mc .v2rc-type { padding: 0 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .adv-picker-overlay, .adv-picker { animation: none; }
-  .adv-tile:hover, .v2mc-adv-head:hover { transform: none; }
+  .adv-tile:hover { transform: none; }
 }
 
 /* ── OTS-54: «Показать все» — раскрытие полного раунда плей-офф под списком ─────
