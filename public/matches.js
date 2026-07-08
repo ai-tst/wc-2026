@@ -706,10 +706,9 @@ const MESSI_LOADING = [
 ];
 
 // ── OTS-90: пикер «Советники» (вариант C). 8 характеров дают ту же подсказку ────
-// своим голосом. ГЕЙТ: пикер и не-Месси советники — ТОЛЬКО у боевого аккаунта
-// Тимы «Актимелька» (стабильный uid). Остальным остаётся ровно старый одиночный
-// Месси. Настоящий гейт дублируется на сервере (не-Месси форсится в Месси чужим).
-const ADVISOR_GATE_UID = "a12c1237-6e98-48f0-9678-9bc52a1d37cc";
+// своим голосом. Гейт на «Актимельку» СНЯТ (правка Тимы) — пикер открыт всем
+// залогиненным. Легаси-путь одиночного Месси остаётся фолбэком (на всякий случай,
+// если нет currentUser). Защита бэка (семафор/рейт-лимит/кэш) — на месте.
 const ADVISORS = [
   { key: "messi",   name: "Месси",   role: "GOAT" },
   { key: "ronaldo", name: "Роналду", role: "SIUUU" },
@@ -722,7 +721,7 @@ const ADVISORS = [
 ];
 const ADVISOR_BY_KEY = Object.fromEntries(ADVISORS.map((a) => [a.key, a]));
 const advisorImg = (key) => `/avatar-${key}.png`;
-const advisorPickerEnabled = () => currentUser?.id === ADVISOR_GATE_UID;
+const advisorPickerEnabled = () => !!currentUser;   // открыт всем залогиненным
 const ADVISOR_LOADING = (key) => {
   const a = ADVISOR_BY_KEY[key] || ADVISOR_BY_KEY.messi;
   return [
