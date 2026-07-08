@@ -41,6 +41,10 @@ button{font-family:inherit}
   .rail{position:sticky;top:20px}
 }
 @media(max-width:899px){ .rail{display:none} }
+/* P8/P9 (OTS-91): в разделах «Таблица» и «Сетка» рейл убираем и отдаём весь экран
+   контенту (сетка видна целиком, таблица не дублируется правым рейлом). */
+body.view-wide .rail{display:none}
+@media(min-width:900px){ body.view-wide .layout{grid-template-columns:minmax(0,1fr)} }
 
 /* ---------- header ---------- */
 header{position:sticky;top:0;z-index:40;background:rgba(10,10,12,.72);backdrop-filter:blur(16px) saturate(1.2);
@@ -209,7 +213,12 @@ body.menu-open .burger i::after{top:0;right:0;width:19px;transform:rotate(-45deg
 .player.filled{border-color:rgba(46,226,122,.4);color:var(--text)}
 .player .ic{font-size:15px}
 .player .who{color:var(--text);font-weight:600}
-.player .chev{margin-left:auto;color:var(--dim);font-size:12px;font-weight:600}
+.player .chev{margin-left:auto;color:var(--dim);font-size:12px;font-weight:600;flex:none}
+/* P3 (OTS-91): ЛИМ теперь input с живым поиском — не тупик */
+.player{cursor:text}
+.player-inp{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-family:inherit;font-size:13.5px;font-weight:500;outline:none;padding:0}
+.player-inp::placeholder{color:var(--muted)}
+.player.filled .player-inp{color:var(--text);font-weight:600}
 /* Messi = круглая аватарка-кнопка, без текста */
 .messi{width:48px;height:48px;border-radius:50%;flex:none;cursor:pointer;position:relative;padding:0;border:2px solid rgba(255,203,69,.55);
   background:var(--surface2);overflow:visible;transition:transform .18s var(--ease),border-color .2s}
@@ -222,8 +231,10 @@ body.menu-open .burger i::after{top:0;right:0;width:19px;transform:rotate(-45deg
 @keyframes mpulse{0%{box-shadow:0 0 0 0 rgba(255,203,69,.45)}70%{box-shadow:0 0 0 9px rgba(255,203,69,0)}100%{box-shadow:0 0 0 0 rgba(255,203,69,0)}}
 
 .ppick{max-height:0;overflow:hidden;transition:max-height .34s var(--ease);margin:0 16px}
-.ppick.open{max-height:240px}
+.ppick.open{max-height:248px}
 .ppick .inner{padding:8px 0 2px;display:flex;flex-direction:column;gap:6px}
+.ppick.open .inner{max-height:232px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ppick.open .inner::-webkit-scrollbar{width:6px}.ppick.open .inner::-webkit-scrollbar-thumb{background:var(--line2);border-radius:99px}
 .ppick .opt{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--line);border-radius:11px;
   padding:11px 13px;font-size:13.5px;font-weight:500;cursor:pointer;transition:.15s}
 .ppick .opt:hover{border-color:var(--line2)}
@@ -244,6 +255,18 @@ body.menu-open .burger i::after{top:0;right:0;width:19px;transform:rotate(-45deg
 .adv .a.locked{border-color:rgba(46,226,122,.5);background:rgba(46,226,122,.1);color:#c7f6dd;cursor:default}
 .adv.needpick .a{border-color:rgba(255,82,87,.5);animation:pborder 1.4s ease infinite}
 @keyframes pborder{50%{box-shadow:0 0 0 1px rgba(255,82,87,.5)}}
+
+/* P5 (OTS-91): выбор прохода кликом по самой команде (плей-офф). Отдельной
+   нижней плашки нет — проходящий подсвечивается зелёным прямо в шапке. */
+.team.sidebtn{cursor:pointer;border-radius:12px;padding:6px 5px;transition:background .18s,box-shadow .2s}
+.team.sidebtn:hover{background:rgba(255,255,255,.03)}
+.team.sidebtn:active{transform:scale(.98)}
+.team .adv-tag{font-size:9.5px;font-weight:800;letter-spacing:.03em;color:var(--accent);text-transform:uppercase;line-height:1.1;text-align:center}
+.team .adv-tag:empty{display:none}
+.team.adv-on{background:rgba(46,226,122,.1);box-shadow:inset 0 0 0 1px rgba(46,226,122,.5)}
+.team.adv-on .nm{color:var(--accent)}
+.team.adv-lock{cursor:default}
+.team.needpick{box-shadow:inset 0 0 0 1px rgba(255,82,87,.5);animation:pborder 1.4s ease infinite}
 
 /* points + draft + go */
 .foot{padding:10px 16px 4px}
@@ -292,11 +315,23 @@ body.menu-open .burger i::after{top:0;right:0;width:19px;transform:rotate(-45deg
 @keyframes slin{to{transform:none;opacity:1}}
 .ppl .av{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:var(--disp);font-weight:700;font-size:11px;color:#04160c}
 .ppl .who{font-weight:600}
-.ppl .bet{margin-left:auto;font-family:var(--disp);font-weight:700;font-size:15px;color:#fff;font-variant-numeric:tabular-nums}
-.ppl .adv2{font-size:10.5px;color:var(--violet);font-weight:600}
-.ppl .pt{margin-left:8px;font-family:var(--disp);font-weight:700;font-size:12px;color:var(--accent);flex:none}
-.ppl .pt.z{color:var(--dim)}
 .ppl.me{background:rgba(46,226,122,.07)}
+/* P1 (OTS-91): колоночная разбивка — флаг стороны прохода · счёт · игрок · очки */
+.ppl.cols{display:grid;grid-template-columns:28px minmax(46px,1fr) 22px auto minmax(0,1.05fr) auto;align-items:center;gap:5px 9px}
+.ppl.cols .av{grid-row:span 1}
+.ppl.cols .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppl .ppl-fl{width:22px;height:15px;border-radius:3px;object-fit:cover;flex:none}
+.ppl .ppl-fl.x{width:22px;text-align:center;color:var(--dim);font-size:11px;font-weight:600}
+.ppl.cols .bet{font-family:var(--disp);font-weight:700;font-size:15px;color:#fff;font-variant-numeric:tabular-nums;text-align:center}
+.ppl .ppl-pl{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ppl .pt{font-family:var(--disp);font-weight:700;font-size:12px;color:var(--accent);text-align:right;flex:none}
+.ppl .pt.z{color:var(--dim)}
+.ppl .pt.none{display:none}
+/* P2: замаскированная строка (антиспойлер до конца матча) */
+.ppl.masked{color:var(--muted)}
+.ppl.masked .av-slot{display:inline-flex;flex:none}
+.ppl.masked .who{flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppl.masked .lockbet{font-size:11.5px;color:var(--dim);font-weight:600;flex:none}
 
 /* ---------- RIGHT RAIL (desktop) ---------- */
 .rail .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:16px}
@@ -570,7 +605,8 @@ body.ctry-open .picker{transform:none}
 .bkhead .mine b{font-family:var(--disp);color:var(--accent)}
 
 /* ── reactions (соц-слой) ─────────────────────────────────────────────────── */
-.ppl .react{display:inline-flex;gap:2px;margin-left:8px;flex:none}
+.ppl .react{display:inline-flex;gap:2px;flex:none}
+.ppl.cols .react{grid-column:1/-1;justify-self:start;margin-left:37px;margin-top:-2px}
 .ppl .rx{background:transparent;border:0;cursor:pointer;font-size:13px;line-height:1;padding:3px 4px;border-radius:8px;opacity:.35;filter:grayscale(.6);transition:.15s}
 .ppl .rx:hover{opacity:.85;filter:none;background:var(--surface3)}
 .ppl .rx.on{opacity:1;filter:none;background:var(--surface3);transform:scale(1.12)}
@@ -599,14 +635,7 @@ body.ctry-open .picker{transform:none}
 .bracket-tree .bk-match{position:relative;background:var(--surface);border:1px solid var(--line2);border-radius:11px;padding:7px 9px;display:flex;flex-direction:column;gap:5px}
 .bracket-tree .bk-match--empty{opacity:.5;border-style:dashed}
 .bracket-tree .bk-col.f .bk-match{border-color:rgba(255,203,69,.45);background:rgba(255,203,69,.06)}
-/* коннекторы — горизонтальные стабы к центру */
-.bracket-tree .l:not(.r32) .bk-match::before,.bracket-tree .c .bk-match::before,.bracket-tree .r:not(.r32) .bk-match::after{content:"";position:absolute;top:50%;width:11px;height:1px;background:var(--line2)}
-.bracket-tree .l .bk-match::before{left:-11px}
-.bracket-tree .c .bk-match::before{left:-11px}
-.bracket-tree .r .bk-match::after{right:-11px}
-.bracket-tree .l:not(.sf) .bk-match::after,.bracket-tree .r:not(.sf):not(.r32) .bk-match::before{content:"";position:absolute;top:50%;width:11px;height:1px;background:var(--line2)}
-.bracket-tree .l .bk-match::after{right:-11px}
-.bracket-tree .r .bk-match::before{left:-11px}
+/* P10 (OTS-91): коннекторы-стабы убраны — Тима: «лишние полосы, выглядят тупо» */
 .bracket-tree .bk-team{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text);min-width:0}
 .bracket-tree .bkfl{width:20px;height:14px;border-radius:3px;object-fit:cover;flex:none}
 .bracket-tree .bk-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
@@ -622,3 +651,40 @@ body.ctry-open .picker{transform:none}
 .bracket-tree .bk-badge.no{background:#3a1c22;color:#ff8a9b;border:1px solid rgba(255,138,155,.4)}
 .bracket-tree .bk-badge.pick{background:rgba(255,203,69,.14);color:var(--gold);border:1px solid rgba(255,203,69,.4)}
 @media(max-width:600px){.bracket-tree .bk-col{min-width:136px;padding:0 8px}.bracket-tree .bk-team{font-size:11.5px}}
+
+/* ══════════════ OTS-91 round-2 (Тима) ══════════════ */
+
+/* ── P7: плей-офф таблица основная · глобальная свёрнута ───────────────────── */
+.lb-empty{color:var(--muted);font-size:13.5px;line-height:1.55;padding:18px 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.lb-global{margin-top:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.lb-global>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:14px 16px}
+.lb-global>summary::-webkit-details-marker{display:none}
+.lb-global .lbg-t{font-family:var(--disp);font-weight:700;font-size:14px}
+.lb-global .lbg-s{font-size:11.5px;color:var(--muted)}
+.lb-global .lbg-chev{margin-left:auto;color:var(--dim);font-size:15px;font-weight:700;transition:transform .3s var(--ease)}
+.lb-global[open] .lbg-chev{transform:rotate(90deg)}
+.lb-global #lbGlobalList{padding:2px 12px 14px}
+
+/* ── P12/P13: шеринг — оверлей превью и тост (в v3 не было стилей → карточка
+      «сжималась вниз». Порт из public/ под токены v3). ──────────────────────── */
+.share-overlay{position:fixed;inset:0;z-index:1000;background:rgba(6,6,10,.82);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;padding:20px;animation:share-fade .18s ease-out}
+@keyframes share-fade{from{opacity:0}to{opacity:1}}
+.share-modal{position:relative;width:min(420px,100%);max-height:92vh;overflow-y:auto;background:var(--surface);
+  border:1px solid var(--line2);border-radius:var(--r-lg);box-shadow:var(--sh);padding:18px;display:flex;flex-direction:column;gap:12px}
+.share-modal__title{font-family:var(--disp);font-weight:700;font-size:20px;color:var(--text);text-align:center}
+.share-close{position:absolute;top:10px;right:10px;width:32px;height:32px;padding:0;display:grid;place-items:center;
+  background:var(--surface2);color:var(--muted);border:1px solid var(--line2);border-radius:999px;font-size:14px;cursor:pointer}
+.share-close:hover{color:var(--accent);border-color:var(--accent)}
+.share-preview{display:block;width:100%;border-radius:var(--r-sm);border:1px solid var(--line2)}
+.share-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.share-act{padding:10px 12px;background:var(--surface2);color:var(--text);border:1px solid var(--line2);border-radius:var(--r-sm);
+  font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:border-color .2s,color .2s}
+.share-act:hover{border-color:var(--accent);color:var(--accent)}
+.share-act--primary{grid-column:1/-1;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:var(--accent-ink);border:none}
+.share-act--primary:hover{color:var(--accent-ink);opacity:.92}
+.share-modal__hint{text-align:center;font-size:12px;color:var(--muted)}
+.share-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:1100;background:var(--accent-d);color:#04160c;
+  padding:11px 22px;border-radius:var(--r-sm);font-weight:700;font-size:14px;box-shadow:var(--sh);animation:share-toast-in .2s ease-out}
+.share-toast--bad{background:var(--live);color:#fff}
+@keyframes share-toast-in{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}

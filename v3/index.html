@@ -59,11 +59,11 @@
     </label>
   </div>
 
-  <!-- второй уровень — только под «Все» -->
+  <!-- второй уровень — только под «Все»; теги-toggle (клик повторно — снять) -->
   <div class="subseg" id="subseg">
-    <button class="subchip on" data-s="all">Все</button>
     <button class="subchip" data-s="future">Будущие</button>
     <button class="subchip" data-s="finished">Завершённые</button>
+    <button class="subchip" data-s="nobet">Без ставки</button>
   </div>
 
   <div class="sechead"><span class="t" id="feedTitle">Матчи</span><span class="c" id="feedCount"></span></div>
@@ -76,10 +76,14 @@
 <div class="view" id="view-lb">
   <div class="backbtn" data-go="feed">‹ к матчам</div>
   <div class="bkhead">
-    <h2>🏅 Таблица лидеров</h2>
+    <h2>🏆 Плей-офф</h2>
     <span class="mine" id="lbMine"></span>
   </div>
   <div id="lbList" class="lb-arena"></div>
+  <details class="lb-global" id="lbGlobal">
+    <summary><span class="lbg-t">Глобальная таблица</span><span class="lbg-s">с учётом группового этапа</span><span class="lbg-chev">›</span></summary>
+    <div id="lbGlobalList" class="lb-arena"></div>
+  </details>
 </div>
 
 <!-- ============ BRACKET VIEW ============ -->
@@ -115,7 +119,6 @@
 <nav class="menu" id="menu">
   <div class="mh"><img src="/otsos-logo.png"><div><div class="n">ОТСОС</div><div class="s">World Cup 2026</div></div></div>
   <div class="mi on" data-v="feed"><span class="ico">⚽</span>Матчи</div>
-  <div class="mi" data-v="live"><span class="ico">📡</span>Лайв<span class="live-d" id="menuLiveDot" style="display:none"></span></div>
   <div class="mi" data-v="lb"><span class="ico">🏅</span>Таблица лидеров</div>
   <div class="mi" data-v="bracket"><span class="ico">🏆</span>Турнирная сетка</div>
   <div class="spacer"></div>

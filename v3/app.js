@@ -23,7 +23,7 @@ const esc = escapeHtml;
 let FUTURE = [];          // будущие матчи вне сегодняшнего горизонта
 let degraded = false;     // провайдер лёг → данные неполные
 const drafts = new Map(); // matchId → {h,a,player,advance,placed,changed}
-let curFilter = "today", curSub = "all", curCountry = null;
+let curFilter = "today", curSub = null, curCountry = null;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const KO_RU = { R32: "1/16 финала", R16: "1/8 финала", QF: "1/4 финала", SF: "1/2 финала", F: "Финал" };
@@ -158,25 +158,42 @@ function participantEntries(m, withPoints) {
     }))
     .sort((a, b) => (isMe(b.nick) - isMe(a.nick)) || (withPoints ? (b.pts - a.pts) : 0) || (a.nick || "").localeCompare(b.nick || ""));
 }
-// Всегда показываем строку-триггер (даже «0 ставок · будь первым»), список не режем.
-function participantsBlock(m, cardId, withPoints, label) {
+// P1/P2 (OTS-91): колоночная разбивка (флаг стороны прохода · счёт · игрок).
+// reveal=false (не начался / лайв) → чужие ставки СКРЫТЫ (антиспойлер): видно
+// только кто поставил, а счёт/страна/игрок — под замком до конца матча. Свою
+// ставку показываем всегда (для себя это не спойлер). reveal=true только на ended.
+function participantsBlock(m, cardId, reveal, label) {
+  const withPoints = reveal && getMatchPhase(m) === "ended";
   const ents = participantEntries(m, withPoints);
   if (!ents.length) {
     return `<div class="others empty0" data-ppl="${cardId}"><span>${esc(label)}</span>` +
       `<span class="cnt">0 ставок · будь первым 👀</span></div>`;
   }
+  const ko = isKO(m);
   const stack = ents.slice(0, 3).map((e) =>
     `<span style="background:${avColor(e.nick)}">${esc(initials(e.nick))}</span>`).join("");
   const rows = ents.map((e) => {
-    const adv = isKO(m) && e.advance ? `<span class="adv2">↗ ${esc(e.advance)}</span>` : "";
-    const pt = withPoints ? `<span class="pt${e.pts > 0 ? "" : " z"}">${e.pts > 0 ? "+" + e.pts : "0"}</span>` : "";
-    const rx = isMe(e.nick) ? "" : reactCluster(m.id, e.nick);
-    return `<div class="ppl${isMe(e.nick) ? " me" : ""}"><span class="av" style="background:${avColor(e.nick)}">${esc(initials(e.nick))}</span>` +
-      `<span class="who">${isMe(e.nick) ? "ты · " : ""}${esc(e.nick)}</span>${adv}` +
-      `<span class="bet num">${esc(String(e.home ?? "–"))}:${esc(String(e.away ?? "–"))}</span>${pt}${rx}</div>`;
+    const mine = isMe(e.nick);
+    const av = `<span class="av" style="background:${avColor(e.nick)}">${esc(initials(e.nick))}</span>`;
+    const who = `<span class="who">${mine ? "ты · " : ""}${esc(e.nick)}</span>`;
+    if (!(reveal || mine)) {
+      return `<div class="ppl masked"><span class="av-slot">${av}</span>${who}` +
+        `<span class="lockbet">🔒 скрыто до конца матча</span></div>`;
+    }
+    const flag = ko
+      ? (e.advance ? flagImg(e.advance, "ppl-fl") : `<span class="ppl-fl x" title="проход не выбран">—</span>`)
+      : `<span class="ppl-fl x"></span>`;
+    const score = `<span class="bet num">${esc(String(e.home ?? "–"))}:${esc(String(e.away ?? "–"))}</span>`;
+    const player = `<span class="ppl-pl" title="${esc(e.bestPlayer || "")}">${e.bestPlayer ? esc(e.bestPlayer) : "—"}</span>`;
+    const pt = withPoints ? `<span class="pt${e.pts > 0 ? "" : " z"}">${e.pts > 0 ? "+" + e.pts : "0"}</span>` : `<span class="pt none"></span>`;
+    const rx = (reveal && !mine) ? reactCluster(m.id, e.nick) : "";
+    return `<div class="ppl cols${mine ? " me" : ""}">${av}${who}${flag}${score}${player}${pt}${rx}</div>`;
   }).join("");
+  const cnt = reveal
+    ? `${ents.length} ${withPoints ? "результата" : "ставок"}`
+    : `${ents.length} поставили · 🔒`;
   return `<div class="others" data-ppl="${cardId}"><span>${esc(label)}</span>` +
-    `<span class="cnt"><span class="av-stack">${stack}</span>${ents.length} ${withPoints ? "ставок" : "поставили"}<span class="chev">›</span></span></div>` +
+    `<span class="cnt"><span class="av-stack">${stack}</span>${cnt}<span class="chev">›</span></span></div>` +
     `<div class="ppllist">${rows}</div>`;
 }
 
@@ -201,8 +218,10 @@ function metaRow(m, timeCls, timeInner) {
     `<span class="sep"></span><span class="stage${isKO(m) ? " ko" : ""}">${stageLabel(m)}</span>` +
     `<span class="time ${timeCls}">${timeInner}</span></div>`;
 }
-function teamCol(name) {
-  return `<div class="team">${flagImg(name)}<div class="nm">${esc(name)}</div></div>`;
+function teamCol(name, side) {
+  const attrs = side ? ` data-team="${esc(name)}" data-side="${side}" role="button" tabindex="0"` : "";
+  const tag = side ? `<div class="adv-tag" data-adv-tag></div>` : "";
+  return `<div class="team${side ? " sidebtn" : ""}"${attrs}>${flagImg(name)}<div class="nm">${esc(name)}</div>${tag}</div>`;
 }
 
 function buildUpcomingCard(m) {
@@ -222,16 +241,14 @@ function buildUpcomingCard(m) {
   const cap = isKO(m) ? "счёт осн. времени" : "твой счёт";
   el.innerHTML =
     metaRow(m, "", timeText(m)) +
-    `<div class="body">${teamCol(m.home)}` +
-      `<div class="mid"><span class="cap">${cap}</span><div class="scoreset">` +
+    `<div class="body">${teamCol(m.home, isKO(m) ? "home" : null)}` +
+      `<div class="mid"><span class="cap" data-cap>${cap}</span><div class="scoreset">` +
         `<span class="stepper"><button data-step="h,-1">−</button><span class="n empty" data-n="h">–</span><button data-step="h,1">+</button></span>` +
         `<span class="col">:</span>` +
         `<span class="stepper"><button data-step="a,-1">−</button><span class="n empty" data-n="a">–</span><button data-step="a,1">+</button></span>` +
-      `</div></div>${teamCol(m.away)}</div>` +
-    (isKO(m) ? `<div class="advwrap" data-advwrap style="display:none"><div class="advlab" data-advlab></div>` +
-      `<div class="adv" data-adv><div class="a" data-adv-team="${esc(m.home)}">${flagImg(m.home, "advfl")} ${esc(m.home)}</div>` +
-      `<div class="a" data-adv-team="${esc(m.away)}">${flagImg(m.away, "advfl")} ${esc(m.away)}</div></div></div>` : "") +
-    `<div class="betrow"><div class="player" data-player><span class="ic">⚽</span><span data-pltext>Лучший игрок матча</span><span class="chev" data-chev>выбрать ›</span></div>` +
+      `</div></div>${teamCol(m.away, isKO(m) ? "away" : null)}</div>` +
+    `<div class="betrow"><div class="player" data-player><span class="ic">⚽</span>` +
+      `<input class="player-inp" data-player-inp type="text" autocomplete="off" spellcheck="false" placeholder="Лучший игрок матча — впиши имя"><span class="chev" data-chev>›</span></div>` +
       `<button class="messi" data-messi title="Спросить Месси"><img src="/messi-ai.webp" alt="Месси"><span class="goat">🐐</span></button></div>` +
     `<div class="ppick" data-ppick><div class="inner" data-ppick-inner><div class="opt" style="justify-content:center;color:var(--dim)">загружаю состав…</div></div></div>` +
     cardInfo(m) +
@@ -333,36 +350,39 @@ function wireUpcoming(el, m, d) {
     else { e.textContent = v; e.classList.remove("empty"); e.classList.add("bump"); setTimeout(() => e.classList.remove("bump"), 140); }
   }
   function markDraft() { d.changed = true; }   // тихий авто-черновик, без шумного индикатора
+  // P5 (OTS-91): проход выбирается кликом по самой команде в шапке карточки —
+  // отдельной нижней плашки нет. Решающий счёт → авто-подсветка победителя (лочено).
+  // Ничья → тапни команду, которая проходит по пенальти.
   function updateAdvance() {
     if (!isKO(m)) return;
-    const wrap = el.querySelector("[data-advwrap]"), lab = el.querySelector("[data-advlab]"), adv = el.querySelector("[data-adv]");
-    if (d.h == null || d.a == null) { wrap.style.display = "none"; return; }
-    wrap.style.display = "block";
-    const opts = [...adv.querySelectorAll(".a")];
-    opts.forEach((o) => o.classList.remove("sel", "locked"));
-    adv.classList.remove("needpick");
+    const teams = [...el.querySelectorAll("[data-side]")];
+    const capEl = el.querySelector("[data-cap]");
+    teams.forEach((t) => { t.classList.remove("adv-on", "adv-lock", "needpick"); const tag = t.querySelector("[data-adv-tag]"); if (tag) tag.textContent = ""; });
+    if (d.h == null || d.a == null) { if (capEl) capEl.textContent = "счёт осн. времени"; return; }
     if (d.h !== d.a) {
       const win = d.h > d.a ? m.home : m.away; d.advance = win;
-      opts.forEach((o) => {
-        const team = o.dataset.advTeam;
-        o.innerHTML = (team === win ? "🔒 " : "") + flagImg(team, "advfl") + " " + esc(team) + (team === win ? " проходит" : "");
-        if (team === win) o.classList.add("locked");
-      });
-      lab.innerHTML = 'Кто проходит <span class="lock">🔒 авто — победитель по счёту</span>';
+      teams.forEach((t) => { if (t.dataset.team === win) { t.classList.add("adv-on", "adv-lock"); const tag = t.querySelector("[data-adv-tag]"); if (tag) tag.textContent = "🔒 проходит"; } });
+      if (capEl) capEl.textContent = "счёт осн. времени";
+    } else if (d.advance) {
+      teams.forEach((t) => { if (t.dataset.team === d.advance) { t.classList.add("adv-on"); const tag = t.querySelector("[data-adv-tag]"); if (tag) tag.textContent = "проходит по пен."; } });
+      if (capEl) capEl.textContent = "ничья · серия пенальти";
     } else {
-      opts.forEach((o) => { o.innerHTML = flagImg(o.dataset.advTeam, "advfl") + " " + esc(o.dataset.advTeam); if (o.dataset.advTeam === d.advance) o.classList.add("sel"); });
-      if (!d.advance) { adv.classList.add("needpick"); lab.innerHTML = 'Кто проходит <span class="req">⚠ ничья → пенальти · выбери обязательно</span>'; }
-      else lab.innerHTML = 'Кто проходит <span class="req">пенальти · твой выбор</span>';
+      teams.forEach((t) => t.classList.add("needpick"));
+      if (capEl) capEl.textContent = "ничья → тапни, кто проходит";
     }
   }
   function refreshGo() {
     let ok = d.h != null && d.a != null;
     if (isKO(m) && d.h === d.a && !d.advance) ok = false;
+    const noPlayer = !d.player;
+    if (noPlayer) ok = false;                        // P4: без лучшего игрока ставку не принимаем
     goBtn.disabled = !ok;
     if (d.placed && !d.changed) { goBtn.classList.add("done"); goBtn.innerHTML = "✓ Ставка принята · меняй до старта"; goBtn.disabled = false; return; }
     goBtn.classList.remove("done");
     goBtn.textContent = ok ? (d.placed ? "ОБНОВИТЬ СТАВКУ" : "СТАВЛЮ")
-      : (d.h == null || d.a == null ? "ВВЕДИ СЧЁТ" : "ВЫБЕРИ КТО ПРОХОДИТ");
+      : (d.h == null || d.a == null) ? "ВВЕДИ СЧЁТ"
+      : (isKO(m) && d.h === d.a && !d.advance) ? "ВЫБЕРИ КТО ПРОХОДИТ"
+      : "ВЫБЕРИ ИГРОКА";
   }
 
   // steppers
@@ -376,13 +396,15 @@ function wireUpcoming(el, m, d) {
   // compact info toggle (очки + кэфы)
   el.querySelector("[data-cinfo-t]")?.addEventListener("click", () => el.querySelector("[data-cinfo]").classList.toggle("open"));
 
-  // player picker
+  // player typeahead (P3): input + живой поиск по составу. Можно выбрать из выдачи
+  // ИЛИ вписать своё имя. Список скроллится — больше не тупик.
   const pickWrap = el.querySelector("[data-player]");
   const ppick = el.querySelector("[data-ppick]");
+  const plInp = el.querySelector("[data-player-inp]");
+  const ppickInner = el.querySelector("[data-ppick-inner]");
   let players = null;
   async function loadPlayers() {
     if (players) return players;
-    const inner = el.querySelector("[data-ppick-inner]");
     let list = [];
     try {
       if (m.homeTeamId && m.awayTeamId) {
@@ -391,26 +413,38 @@ function wireUpcoming(el, m, d) {
       }
     } catch { /* ignore */ }
     players = list;
-    if (!list.length) inner.innerHTML = `<div class="opt" style="justify-content:center;color:var(--dim)">состав недоступен — впиши игрока в «Спросить Месси»</div>`;
-    else inner.innerHTML = list.map((p) => `<div class="opt" data-pick="${esc(p.name)}">${esc(p.name)}<span class="tm">${esc(p.team)}</span></div>`).join("");
-    inner.querySelectorAll("[data-pick]").forEach((o) => o.addEventListener("click", () => setPlayer(o.dataset.pick)));
     return list;
   }
+  function renderPlayerOpts() {
+    if (!players) return;
+    if (!players.length) { ppickInner.innerHTML = `<div class="opt" style="justify-content:center;color:var(--dim)">состав недоступен — впиши игрока вручную</div>`; return; }
+    const q = (plInp.value || "").trim().toLowerCase();
+    const filtered = q ? players.filter((p) => p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(q))) : players;
+    if (!filtered.length) { ppickInner.innerHTML = `<div class="opt" style="justify-content:center;color:var(--dim)">никого не нашёл — оставлю «${esc(plInp.value.trim())}»</div>`; return; }
+    ppickInner.innerHTML = filtered.slice(0, 40).map((p) => `<div class="opt" data-pick="${esc(p.name)}">${esc(p.name)}<span class="tm">${esc(p.team)}</span></div>`).join("");
+    ppickInner.querySelectorAll("[data-pick]").forEach((o) => o.addEventListener("click", () => setPlayer(o.dataset.pick)));
+  }
+  function setFilled() { pickWrap.classList.toggle("filled", Boolean(d.player)); }
   function setPlayer(name) {
-    d.player = name;
-    el.querySelector("[data-pltext]").textContent = name;
-    pickWrap.classList.add("filled");
-    el.querySelector("[data-chev]").textContent = "менять ›";
-    el.querySelector('[data-pc="p"]')?.classList.add("hit");
-    ppick.classList.remove("open");
+    d.player = (name || "").trim() || null;
+    plInp.value = d.player || "";
+    setFilled(); ppick.classList.remove("open");
     markDraft(); refreshGo();
   }
-  pickWrap.addEventListener("click", async () => { ppick.classList.toggle("open"); if (ppick.classList.contains("open")) await loadPlayers(); });
+  plInp.addEventListener("focus", async () => { ppick.classList.add("open"); await loadPlayers(); renderPlayerOpts(); });
+  plInp.addEventListener("input", async () => {
+    d.player = plInp.value.trim() || null; setFilled();
+    ppick.classList.add("open"); await loadPlayers(); renderPlayerOpts();
+    markDraft(); refreshGo();
+  });
+  plInp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); plInp.blur(); ppick.classList.remove("open"); } });
+  document.addEventListener("click", (ev) => { if (!pickWrap.contains(ev.target) && !ppick.contains(ev.target)) ppick.classList.remove("open"); });
 
-  if (isKO(m)) el.querySelector("[data-adv]").addEventListener("click", (ev) => {
-    const opt = ev.target.closest(".a"); if (!opt) return;
-    if (d.h == null || d.a == null || d.h !== d.a) return;
-    d.advance = opt.dataset.advTeam; updateAdvance(); markDraft(); refreshGo();
+  // P5: клик по самой команде → выбор прохода (только при ничье; решающий счёт лочит)
+  if (isKO(m)) el.querySelectorAll("[data-side]").forEach((t) => {
+    const pick = () => { if (d.h == null || d.a == null || d.h !== d.a) return; d.advance = t.dataset.team; updateAdvance(); markDraft(); refreshGo(); };
+    t.addEventListener("click", pick);
+    t.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
   });
 
   // messi — async-панель ВНУТРИ карточки (без scrim, без блокировки)
@@ -431,9 +465,9 @@ function wireUpcoming(el, m, d) {
     d.h = next.h; d.a = next.a; d.player = next.player ?? d.player; d.advance = next.advance ?? d.advance;
     d.placed = true; d.changed = false;
     renderN("h"); renderN("a");
-    if (d.player) { el.querySelector("[data-pltext]").textContent = d.player; el.querySelector("[data-player]").classList.add("filled"); }
+    if (d.player) { plInp.value = d.player; pickWrap.classList.add("filled"); }
     el.classList.add("placed", "flash"); setTimeout(() => el.classList.remove("flash"), 720);
-    ["o", "e", "p"].forEach((s) => el.querySelector(`[data-pc="${s}"]`)?.classList.add("hit"));
+    // P6: чипы очков НЕ подсвечиваем зелёным при ставке — только в итоговом подсчёте (ended)
     sparkle(el);
     const lbl = isKO(m) ? `${esc(d.advance)} проходит · ${d.h}:${d.a}` : `${esc(m.home)}–${esc(m.away)} ${d.h}:${d.a}`;
     toast(`<span class="k">✓</span> ${opts.slot ? "Казик решил" : "Ставка принята"} — ${lbl}`);
@@ -465,8 +499,7 @@ function wireUpcoming(el, m, d) {
 
   wireParticipants(el);
   if (d.h != null) renderN("h"); if (d.a != null) renderN("a");
-  if (d.player) setPlayer(d.player);
-  if (d.h != null && d.a != null) { ["o", "e"].forEach((s) => el.querySelector(`[data-pc="${s}"]`)?.classList.add("hit")); }
+  if (d.player) { plInp.value = d.player; setFilled(); }
   updateAdvance(); refreshGo();
 }
 
@@ -526,7 +559,7 @@ function jackpotTicker(msg) { jackpotMsg = { msg, until: Date.now() + 60000 }; $
 
 // ── filters / feed render ────────────────────────────────────────────────────
 const TITLES = { live: "В лайве прямо сейчас", today: "Матчи сегодня", all: "Все матчи" };
-const SUBTITLES = { all: "Все матчи", future: "Будущие матчи", finished: "Завершённые матчи" };
+const SUBTITLES = { all: "Все матчи", future: "Будущие матчи", finished: "Завершённые матчи", nobet: "Без твоей ставки" };
 
 function feedPool() {
   const seen = new Set();
@@ -557,6 +590,8 @@ function renderFeed() {
     else if (phase === "ended") card = buildEndedCard(m);
     else card = buildUpcomingCard(m);
     card.dataset.active = inActive ? "1" : "0";
+    const pred = currentUser?.matches?.[m.id];
+    card.dataset.bet = pred && pred.home !== "" ? "1" : "0";
     list.appendChild(card);
   }
   applyFilters();
@@ -569,8 +604,10 @@ function cardVisible(card) {
   }
   if (curFilter === "live") return st === "live";
   if (curFilter === "today") return active && st !== "finished";
+  // вью «Все» + теги-подфильтры (toggle). curSub === null → показываем всё.
   if (curSub === "future") return st === "upcoming";
   if (curSub === "finished") return st === "finished";
+  if (curSub === "nobet") return st !== "finished" && card.dataset.bet !== "1";
   return true;
 }
 function applyFilters() {
@@ -583,7 +620,7 @@ function applyFilters() {
   });
   document.querySelectorAll("#seg button").forEach((b) => b.classList.toggle("on", b.dataset.f === curFilter));
   movePill();
-  $("feedTitle").textContent = curFilter === "all" ? SUBTITLES[curSub] : TITLES[curFilter];
+  $("feedTitle").textContent = curFilter === "all" ? (SUBTITLES[curSub] || SUBTITLES.all) : TITLES[curFilter];
   const w = shown + " " + (shown === 1 ? "матч" : (shown >= 2 && shown <= 4 ? "матча" : "матчей"));
   $("feedCount").textContent = w + (curCountry ? ` · ${curCountry}` : "");
   $("emptyState").style.display = shown ? "none" : "block";
@@ -598,10 +635,11 @@ function setFilter(f) {
   curFilter = f;
   const sub = $("subseg");
   if (f === "all") sub.classList.add("show");
-  else { sub.classList.remove("show"); curSub = "all"; syncSub(); }
+  else { sub.classList.remove("show"); curSub = null; syncSub(); }
   applyFilters();
 }
-function setSub(s) { curSub = s; syncSub(); applyFilters(); }
+// toggle: повторный клик по активному тегу снимает фильтр (curSub → null → все матчи)
+function setSub(s) { curSub = curSub === s ? null : s; syncSub(); applyFilters(); }
 function syncSub() { document.querySelectorAll("#subseg .subchip").forEach((b) => b.classList.toggle("on", b.dataset.s === curSub)); }
 function defaultFilter() { return feedPool().some((m) => getMatchPhase(m) === "live") ? "live" : "today"; }
 
@@ -646,26 +684,55 @@ function renderBracket() {
     : "";
 }
 
-// ── leaderboard arena (полный список, доступен с любого устройства) ──────────
-function renderLeaderboard() {
-  const { mv, now } = movementMap();
-  const myIdx = now.findIndex((x) => isMe(x.u.nickname));
-  const myPts = myIdx >= 0 ? now[myIdx].pts : 0;
-  $("lbMine").innerHTML = myIdx >= 0 ? `ты — <b>${myIdx + 1} место</b> · ${myPts} очков` : "сделай первую ставку 👇";
-  const rows = now.map((x, i) => {
+// ── leaderboard arena ────────────────────────────────────────────────────────
+// P7 (OTS-91): основная таблица = плей-офф (очки только за стадию на вылет).
+// Глобальная (с групповым этапом) вторична — свёрнута в <details>.
+function userPlayoffPoints(u) {
+  let s = 0;
+  for (const m of feedPool()) {
+    if (!classifyKnockoutRound(m.group)) continue;
+    const pr = u.matches?.[m.id];
+    if (pr) s += matchPointsFor(pr, m).total;
+  }
+  return s;
+}
+function sortedByPlayoff() {
+  return [...(state.users || [])]
+    .filter((u) => u.onboardingComplete !== false)
+    .map((u) => ({ u, pts: userPlayoffPoints(u) }))
+    .sort((a, b) => b.pts - a.pts || (a.u.nickname || "").localeCompare(b.u.nickname || ""));
+}
+function arenaRows(list, mv) {
+  return list.map((x, i) => {
     const me = isMe(x.u.nickname);
-    const delta = mv[x.u.nickname] || 0;
-    const arrow = delta > 0 ? `<span class="mvt up">▲${delta}</span>` : delta < 0 ? `<span class="mvt dn">▼${-delta}</span>` : `<span class="mvt fl">—</span>`;
-    // «догоняет тебя на N 👀» — для того, кто прямо под тобой
+    const arrow = mv
+      ? ((mv[x.u.nickname] || 0) > 0 ? `<span class="mvt up">▲${mv[x.u.nickname]}</span>`
+        : (mv[x.u.nickname] || 0) < 0 ? `<span class="mvt dn">▼${-mv[x.u.nickname]}</span>` : `<span class="mvt fl">—</span>`)
+      : "";
     let chase = "";
-    if (me && now[i + 1]) { const gap = x.pts - now[i + 1].pts; chase = `<div class="chase">${esc(now[i + 1].u.nickname)} догоняет на ${gap} 👀</div>`; }
+    if (me && list[i + 1]) { const gap = x.pts - list[i + 1].pts; chase = `<div class="chase">${esc(list[i + 1].u.nickname)} догоняет на ${gap} 👀</div>`; }
     return `<div class="arow${me ? " me" : ""}${i === 0 ? " lead" : ""}">` +
       `<span class="ar-rank">${i + 1}</span>${arrow}` +
       `<span class="ar-av" style="background:${avColor(x.u.nickname)}">${esc(initials(x.u.nickname))}</span>` +
       `<span class="ar-who">${me ? "ты · " : ""}${esc(x.u.nickname)}${chase}</span>` +
       `<span class="ar-pts num">${x.pts}</span></div>`;
-  });
-  $("lbList").innerHTML = rows.join("") || `<div class="empty" style="display:block">Пока пусто — сделай ставку 👇</div>`;
+  }).join("");
+}
+function renderLeaderboard() {
+  const anyKO = feedPool().some((m) => classifyKnockoutRound(m.group));
+  const po = sortedByPlayoff();
+  const myIdx = po.findIndex((x) => isMe(x.u.nickname));
+  const myPts = myIdx >= 0 ? po[myIdx].pts : 0;
+  $("lbMine").innerHTML = anyKO
+    ? (myIdx >= 0 ? `ты — <b>${myIdx + 1} место</b> · ${myPts} очков за плей-офф` : "сделай ставку на плей-офф 👇")
+    : "плей-офф ещё впереди 🏆";
+  $("lbList").innerHTML = anyKO
+    ? (arenaRows(po, null) || `<div class="empty" style="display:block">Пока пусто 👇</div>`)
+    : `<div class="lb-empty">Плей-офф ещё не начался — здесь появится таблица за стадию на вылет. Пока смотри общий зачёт ниже 👇</div>`;
+  // глобальная (вторичная) — с учётом группового этапа
+  const { mv, now } = movementMap();
+  const gList = $("lbGlobalList");
+  if (gList) gList.innerHTML = arenaRows(now, mv) || `<div class="empty" style="display:block">Пока пусто 👇</div>`;
 }
 
 // ── header / rail / menu ─────────────────────────────────────────────────────
@@ -687,7 +754,7 @@ function refreshMenuAndRail() {
   if (st.rank && st.rank > 5) rows.push(lbRow(st.rank, list[st.rank - 1]));
   rail.innerHTML = rows.join("");
   const anyLive = feedPool().some((m) => getMatchPhase(m) === "live");
-  $("menuLiveDot").style.display = anyLive ? "" : "none";
+  const liveDot = $("menuLiveDot"); if (liveDot) liveDot.style.display = anyLive ? "" : "none";
   const showTk = anyLive || (jackpotMsg && jackpotMsg.until > Date.now());
   $("ticker").style.display = showTk ? "" : "none";
   if (showTk) renderTicker();
@@ -709,7 +776,12 @@ function renderTicker() {
 
 // ── nav ──────────────────────────────────────────────────────────────────────
 function closeAll() { document.body.classList.remove("menu-open"); closeCountry(); }
-function showView(vid) { document.querySelectorAll(".view").forEach((x) => x.classList.toggle("on", x.id === vid)); }
+function showView(vid) {
+  document.querySelectorAll(".view").forEach((x) => x.classList.toggle("on", x.id === vid));
+  // P8/P9: в разделах «Таблица» и «Сетка» правый рейл убираем (не дублируем) и
+  // отдаём весь экран контенту — сетка видна целиком.
+  document.body.classList.toggle("view-wide", vid === "view-lb" || vid === "view-bracket");
+}
 function setMenuActive(v) { document.querySelectorAll(".menu .mi").forEach((mi) => mi.classList.toggle("on", mi.dataset.v === v)); }
 function go(v) {
   closeAll();

@@ -151,12 +151,12 @@ function bkMatch(match, slotId, currentUser) {
   const pred = currentUser?.matches?.[match.id];
   const pw = predWinner(pred, match);
 
+  // P11 (OTS-91): «ТЫ» на ещё не сыгранном матче убрали — выглядело тупо.
+  // Бейдж только по факту: ✓/✗ появляется, когда матч сыгран и очки посчитаны.
   let badge = "";
-  if (pred && (pred.advance || (pred.home !== "" && pred.away !== ""))) {
-    if (ended && aw) {
-      const p = matchPointsFor(pred, match);
-      badge = p.outcomeCorrect ? `<span class="bk-badge ok">✓${p.total ? " +" + p.total : ""}</span>` : `<span class="bk-badge no">✗</span>`;
-    } else badge = `<span class="bk-badge pick">ТЫ</span>`;
+  if (ended && aw && pred && (pred.advance || (pred.home !== "" && pred.away !== ""))) {
+    const p = matchPointsFor(pred, match);
+    badge = p.outcomeCorrect ? `<span class="bk-badge ok">✓${p.total ? " +" + p.total : ""}</span>` : `<span class="bk-badge no">✗</span>`;
   }
   const hasPen = ended && actual.penalties === "yes" && actual.penHome != null && actual.penHome !== "";
   const penFor = (k) => hasPen ? ` <span class="bk-pen">(${esc(String(k === "home" ? actual.penHome : actual.penAway))})</span>` : "";
