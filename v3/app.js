@@ -163,7 +163,11 @@ function participantEntries(m, withPoints) {
 // только кто поставил, а счёт/страна/игрок — под замком до конца матча. Свою
 // ставку показываем всегда (для себя это не спойлер). reveal=true только на ended.
 function participantsBlock(m, cardId, reveal, label) {
-  const withPoints = reveal && getMatchPhase(m) === "ended";
+  const phase = getMatchPhase(m);
+  const withPoints = reveal && phase === "ended";
+  // Копирайт замка по статусу матча (OTS-91 round-3): до начала — «до начала»,
+  // в лайве — «матч идёт». На ended ветка масок не срабатывает (reveal=true).
+  const lockTxt = phase === "live" ? "🔒 скрыто, матч идёт" : "🔒 скрыто до начала матча";
   const ents = participantEntries(m, withPoints);
   if (!ents.length) {
     return `<div class="others empty0" data-ppl="${cardId}"><span>${esc(label)}</span>` +
@@ -178,7 +182,7 @@ function participantsBlock(m, cardId, reveal, label) {
     const who = `<span class="who">${mine ? "ты · " : ""}${esc(e.nick)}</span>`;
     if (!(reveal || mine)) {
       return `<div class="ppl masked"><span class="av-slot">${av}</span>${who}` +
-        `<span class="lockbet">🔒 скрыто до конца матча</span></div>`;
+        `<span class="lockbet">${lockTxt}</span></div>`;
     }
     const flag = ko
       ? (e.advance ? flagImg(e.advance, "ppl-fl") : `<span class="ppl-fl x" title="проход не выбран">—</span>`)
@@ -248,7 +252,7 @@ function buildUpcomingCard(m) {
         `<span class="stepper"><button data-step="a,-1">−</button><span class="n empty" data-n="a">–</span><button data-step="a,1">+</button></span>` +
       `</div></div>${teamCol(m.away, isKO(m) ? "away" : null)}</div>` +
     `<div class="betrow"><div class="player" data-player><span class="ic">⚽</span>` +
-      `<input class="player-inp" data-player-inp type="text" autocomplete="off" spellcheck="false" placeholder="Лучший игрок матча — впиши имя"><span class="chev" data-chev>›</span></div>` +
+      `<input class="player-inp" data-player-inp type="text" autocomplete="off" spellcheck="false" placeholder="Кто заберёт матч? 🐐"><span class="chev" data-chev>›</span></div>` +
       `<button class="messi" data-messi title="Спросить Месси"><img src="/messi-ai.webp" alt="Месси"><span class="goat">🐐</span></button></div>` +
     `<div class="ppick" data-ppick><div class="inner" data-ppick-inner><div class="opt" style="justify-content:center;color:var(--dim)">загружаю состав…</div></div></div>` +
     cardInfo(m) +
@@ -781,6 +785,8 @@ function showView(vid) {
   // P8/P9: в разделах «Таблица» и «Сетка» правый рейл убираем (не дублируем) и
   // отдаём весь экран контенту — сетка видна целиком.
   document.body.classList.toggle("view-wide", vid === "view-lb" || vid === "view-bracket");
+  // OTS-91 round-3: сетка занимает максимум ширины экрана (не ужимаем в 1180).
+  document.body.classList.toggle("view-bracket-open", vid === "view-bracket");
 }
 function setMenuActive(v) { document.querySelectorAll(".menu .mi").forEach((mi) => mi.classList.toggle("on", mi.dataset.v === v)); }
 function go(v) {

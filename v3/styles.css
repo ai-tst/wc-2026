@@ -208,12 +208,16 @@ body.menu-open .burger i::after{top:0;right:0;width:19px;transform:rotate(-45deg
 /* player pick + messi circle */
 .betrow{display:flex;align-items:center;gap:10px;padding:10px 16px 4px}
 .player{flex:1;display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);
-  border-radius:12px;padding:12px 14px;color:var(--muted);font-size:13.5px;font-weight:500;cursor:pointer;transition:border-color .2s}
+  border-radius:12px;padding:12px 14px;color:var(--muted);font-size:13.5px;font-weight:500;cursor:pointer;
+  transition:border-color .2s var(--ease),box-shadow .2s var(--ease)}
 .player:hover{border-color:var(--line2)}
+/* OTS-91 round-3: аккуратный фокус-стейт — мягкий акцентный ринг, без резкой обводки/скачка */
+.player:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .player.filled{border-color:rgba(46,226,122,.4);color:var(--text)}
 .player .ic{font-size:15px}
 .player .who{color:var(--text);font-weight:600}
-.player .chev{margin-left:auto;color:var(--dim);font-size:12px;font-weight:600;flex:none}
+.player .chev{margin-left:auto;color:var(--dim);font-size:12px;font-weight:600;flex:none;transition:transform .22s var(--ease),color .2s}
+.player:focus-within .chev{transform:rotate(90deg);color:var(--accent)}
 /* P3 (OTS-91): ЛИМ теперь input с живым поиском — не тупик */
 .player{cursor:text}
 .player-inp{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-family:inherit;font-size:13.5px;font-weight:500;outline:none;padding:0}
@@ -232,8 +236,8 @@ body.menu-open .burger i::after{top:0;right:0;width:19px;transform:rotate(-45deg
 
 .ppick{max-height:0;overflow:hidden;transition:max-height .34s var(--ease);margin:0 16px}
 .ppick.open{max-height:248px}
-.ppick .inner{padding:8px 0 2px;display:flex;flex-direction:column;gap:6px}
-.ppick.open .inner{max-height:232px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ppick .inner{padding:8px 0 2px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .22s var(--ease)}
+.ppick.open .inner{max-height:232px;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:1}
 .ppick.open .inner::-webkit-scrollbar{width:6px}.ppick.open .inner::-webkit-scrollbar-thumb{background:var(--line2);border-radius:99px}
 .ppick .opt{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--line);border-radius:11px;
   padding:11px 13px;font-size:13.5px;font-weight:500;cursor:pointer;transition:.15s}
@@ -621,23 +625,27 @@ body.ctry-open .picker{transform:none}
 .tally .eq{margin-left:auto}
 
 /* ── bracket: настоящая сетка-дерево (v3) ─────────────────────────────────── */
+/* OTS-91 round-3: сетка на весь широкий экран — снимаем лимит 1180 и растягиваем
+   контейнер под доступную ширину; ноды/шрифт крупнее; скролл только если реально
+   не помещается (bkscroll overflow-x:auto сам решает). */
+body.view-bracket-open .shell{max-width:min(1720px,97vw)}
 .bkhint{font-size:12.5px;color:var(--muted);margin-bottom:14px}
 .bkhint:empty{display:none}
-.bracket-tree{display:flex;align-items:stretch;gap:0;width:max-content;margin:0 auto;padding:6px 0}
-.bracket-tree .bk-col{display:flex;flex-direction:column;min-width:150px;padding:0 11px}
-.bracket-tree .bk-col.c{min-width:168px;justify-content:center}
-.bracket-tree .bk-col-head{display:flex;flex-direction:column;align-items:center;gap:4px;padding-bottom:10px;text-align:center}
-.bracket-tree .bk-col-title{font-family:var(--disp);font-weight:700;font-size:13px}
+.bracket-tree{display:flex;align-items:stretch;gap:0;width:max-content;min-width:100%;margin:0 auto;padding:6px 0}
+.bracket-tree .bk-col{display:flex;flex-direction:column;flex:1 1 0;min-width:164px;padding:0 12px}
+.bracket-tree .bk-col.c{flex:1 1 0;min-width:184px;justify-content:center}
+.bracket-tree .bk-col-head{display:flex;flex-direction:column;align-items:center;gap:5px;padding-bottom:14px;text-align:center}
+.bracket-tree .bk-col-title{font-family:var(--disp);font-weight:700;font-size:14.5px}
 .bracket-tree .bk-col.f .bk-col-title{color:var(--gold)}
-.bracket-tree .bk-bonus{font-size:9.5px;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+.bracket-tree .bk-bonus{font-size:10px;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
 .bracket-tree .bk-bonus.champ{color:var(--gold);border-color:rgba(255,203,69,.35);background:rgba(255,203,69,.1)}
-.bracket-tree .bk-col-body{flex:1;display:flex;flex-direction:column;justify-content:space-around;min-height:580px;gap:10px}
-.bracket-tree .bk-match{position:relative;background:var(--surface);border:1px solid var(--line2);border-radius:11px;padding:7px 9px;display:flex;flex-direction:column;gap:5px}
+.bracket-tree .bk-col-body{flex:1;display:flex;flex-direction:column;justify-content:space-around;min-height:min(72vh,720px);gap:12px}
+.bracket-tree .bk-match{position:relative;background:var(--surface);border:1px solid var(--line2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:7px}
 .bracket-tree .bk-match--empty{opacity:.5;border-style:dashed}
 .bracket-tree .bk-col.f .bk-match{border-color:rgba(255,203,69,.45);background:rgba(255,203,69,.06)}
 /* P10 (OTS-91): коннекторы-стабы убраны — Тима: «лишние полосы, выглядят тупо» */
-.bracket-tree .bk-team{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text);min-width:0}
-.bracket-tree .bkfl{width:20px;height:14px;border-radius:3px;object-fit:cover;flex:none}
+.bracket-tree .bk-team{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text);min-width:0}
+.bracket-tree .bkfl{width:23px;height:16px;border-radius:3px;object-fit:cover;flex:none}
 .bracket-tree .bk-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .bracket-tree .bk-score{margin-left:auto;font-family:var(--disp);font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
 .bracket-tree .bk-pen{color:var(--gold);font-weight:700}
@@ -650,7 +658,7 @@ body.ctry-open .picker{transform:none}
 .bracket-tree .bk-badge.ok{background:#16331f;color:var(--accent);border:1px solid rgba(46,226,122,.5)}
 .bracket-tree .bk-badge.no{background:#3a1c22;color:#ff8a9b;border:1px solid rgba(255,138,155,.4)}
 .bracket-tree .bk-badge.pick{background:rgba(255,203,69,.14);color:var(--gold);border:1px solid rgba(255,203,69,.4)}
-@media(max-width:600px){.bracket-tree .bk-col{min-width:136px;padding:0 8px}.bracket-tree .bk-team{font-size:11.5px}}
+@media(max-width:600px){.bracket-tree .bk-col{min-width:140px;padding:0 8px}.bracket-tree .bk-team{font-size:12px}.bracket-tree .bk-col-body{min-height:560px}}
 
 /* ══════════════ OTS-91 round-2 (Тима) ══════════════ */
 
