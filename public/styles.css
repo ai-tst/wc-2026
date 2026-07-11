@@ -1573,6 +1573,38 @@ body.design-v2 .scoreboard-table tbody tr:first-child {
 }
 body.design-v2 .scoreboard-row--me td { color: var(--gold); font-weight: 700; }
 
+/* OTS-96: «печать позора» рядом с ником забившего. Дерзко/мемно, но по токенам:
+   danger-градиент + золотой текст. Ник и плашка переносятся, чтобы не рвать вёрстку. */
+body.design-v2 .scoreboard-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+body.design-v2 .scoreboard-roast {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--gold);
+  background: linear-gradient(135deg, var(--danger), color-mix(in srgb, var(--danger) 55%, var(--bg)));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent),
+              0 2px 8px color-mix(in srgb, var(--danger) 35%, transparent);
+  transform: rotate(-3deg);
+  animation: roast-wobble 2.4s ease-in-out infinite;
+}
+@keyframes roast-wobble {
+  0%, 100% { transform: rotate(-3deg) scale(1); }
+  50%      { transform: rotate(3deg) scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.design-v2 .scoreboard-roast { animation: none; }
+}
+
 /* Empty-state while playoff hasn't started (внутри карточки «Турнирная таблица») */
 body.design-v2 .playoff-empty {
   display: flex;

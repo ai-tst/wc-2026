@@ -23,6 +23,7 @@ import secrets
 import subprocess
 import time
 import json
+import math
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -307,6 +308,20 @@ def init_db():
             PRIMARY KEY (match_id, user_id, kind)
         )
     """)
+    # OTS-96: метка времени последней ставки (мс). Ставит save_prediction при любой
+    # ставке с непустым счётом. NULL = ещё ни разу с момента ввода фичи (для «забил»
+    # тогда падаем на сигнал покрытия последних матчей, см. _compute_inactive).
+    db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bet_at BIGINT DEFAULT NULL")
+    # OTS-96: страж «засоса» — эскалация ядрёности пингов забившим. level растёт с
+    # каждым пингом, last_sent дозирует частоту (не флудим). Вернулся к ставкам →
+    # строка удаляется (пинги стоп, эскалация с нуля на следующий раз).
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS telegram_zasos (
+            user_id   TEXT PRIMARY KEY,
+            level     INTEGER DEFAULT 0,
+            last_sent BIGINT
+        )
+    """)
 
     # Remove predictions with oversized scores (more than 2 digits)
     db.execute("""
@@ -579,13 +594,16 @@ _RESULT_MSGS = {
     ],
 }
 
-def _tg_send(chat_id, text):
+def _tg_send(chat_id, text, reply_markup=None):
     if not TELEGRAM_TOKEN:
         return
     try:
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
         _http.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            json=payload,
             timeout=10,
         )
     except Exception as e:
@@ -837,6 +855,172 @@ def _build_ping_message(kind, items):
             + "\n\nЗалетай ставить, пока не поздно 👆")
 
 
+# ==========================================
+# OTS-96 — «Забил» (inactive): печать позора + «засос» в ТГ
+# ==========================================
+# Общая механика на ЛЮБОГО игрока (не хардкод). «Забил» = давно не ставит, пока ЧМ
+# идёт и матчи есть. Тайм-штампов у старых ставок нет (predictions без времени),
+# поэтому «активен» ловим двумя сигналами, и хватает любого:
+#   • last_bet_at — свежая ставка после ввода фичи (мгновенно снимает позор,
+#     даже если это ставка на будущий матч — потому что покрытие обновится позже);
+#   • покрытие последних K сыгранных матчей — на сколько из них человек реально
+#     поставил. Ловит забивших ретроспективно, без истории тайм-штампов.
+# Пороги вынесены в константы — легко покрутить.
+INACTIVE_RECENT_K    = 5       # смотрим на последние K уже сыгранных матчей
+INACTIVE_MIN_RECENT  = 3       # меньше реальных матчей — тихий период, никого не позорим
+INACTIVE_COVER_FRAC  = 0.5     # поставил хотя бы на половину из K → активен
+INACTIVE_FRESH_DAYS  = 4       # свежесть last_bet_at, что снимает позор
+INACTIVE_QUIET_DAYS  = 10      # если самый свежий матч старше — ЧМ в паузе, не позорим
+
+
+def _recent_bettable_match_ids(db, now_utc):
+    """match_id последних INACTIVE_RECENT_K УЖЕ СЫГРАННЫХ матчей (по kickoff, свежие
+    первыми). Только реальные матчи (команды известны — не плейсхолдеры плей-офф).
+    Источник — match_cache (завершённые). Пусто, если ЧМ в долгой паузе."""
+    played = []
+    for r in db.execute("SELECT match_json FROM match_cache").fetchall():
+        try:
+            mj = json.loads(r["match_json"])
+        except Exception:
+            continue
+        home, away = (mj.get("home") or "").strip(), (mj.get("away") or "").strip()
+        if not home or not away or home == "Home" or away == "Away":
+            continue
+        raw = mj.get("dateTimeRaw")
+        if not raw or not mj.get("id"):
+            continue
+        try:
+            ko = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if ko.tzinfo is None:
+            ko = ko.replace(tzinfo=timezone.utc)
+        if ko <= now_utc:
+            played.append((ko, str(mj.get("id"))))
+    if not played:
+        return set()
+    played.sort(reverse=True)
+    # ЧМ в паузе (самый свежий матч давно) — публично не позорим
+    if (now_utc - played[0][0]) > timedelta(days=INACTIVE_QUIET_DAYS):
+        return set()
+    return {mid for _ko, mid in played[:INACTIVE_RECENT_K]}
+
+
+def _compute_inactive_user_ids(db, now_utc=None):
+    """Множество user_id «забивших». Пусто, если недавних матчей мало (тихий период)."""
+    now_utc = now_utc or datetime.now(timezone.utc)
+    recent = _recent_bettable_match_ids(db, now_utc)
+    if len(recent) < INACTIVE_MIN_RECENT:
+        return set()
+    need_cover = max(1, math.ceil(len(recent) * INACTIVE_COVER_FRAC))
+    now_ms = int(now_utc.timestamp() * 1000)
+    fresh_ms = INACTIVE_FRESH_DAYS * 86400 * 1000
+
+    # покрытие: сколько недавних матчей человек реально поставил (непустой счёт)
+    cover = {}
+    for r in db.execute(
+        "SELECT user_id, match_id FROM user_predictions "
+        "WHERE home_score <> '' OR away_score <> ''").fetchall():
+        if str(r["match_id"]) in recent:
+            cover[r["user_id"]] = cover.get(r["user_id"], 0) + 1
+
+    inactive = set()
+    for u in db.execute(
+        "SELECT id, last_bet_at FROM users WHERE onboarding_complete=1").fetchall():
+        last_bet = u["last_bet_at"]
+        recently_active = last_bet is not None and (now_ms - last_bet) < fresh_ms
+        covered = cover.get(u["id"], 0) >= need_cover
+        if not recently_active and not covered:
+            inactive.add(u["id"])
+    return inactive
+
+
+# Пул фраз позора для таблицы. Держим в одном месте — легко пополнять. Выбор
+# детерминированный по нику (стабилен, без мельтешения; разный у разных людей).
+# Тон — Отсос/казик: дерзко, мемно. Дублируется на клиенте (scoreboard.js) —
+# держи оба пула в синхроне при пополнении.
+ROAST_BADGES = [
+    "ОТСОСАЛ", "СЛИЛСЯ", "ЗАССАЛ ЧМ", "ГДЕ СТАВКИ?", "СДУЛСЯ", "ЗАБИЛ БОЛТ",
+]
+
+# Пул «засоса» в ТГ — эскалирует по ядрёности (index = level). Последняя фраза
+# повторяется на всех уровнях выше. Держим в одном месте, легко пополнять.
+ZASOS_LINES = [
+    "Йо, {n}, ЧМ идёт полным ходом, а ты пропал 👀 Возвращайся ставить, пока не поздно.",
+    "{n}, ты не ставишь уже который день 🤡 Тебя в таблице обходят все кроме бота. Отсос ждёт.",
+    "Слышь, {n}, печать позора «ОТСОСАЛ» уже висит на тебе в таблице. Её видят ВСЕ. Хочешь снять — сделай ставку.",
+    "{n}, ещё день без ставки — и позор твой навсегда 💀 Ну ты и лошпед. Го обратно.",
+    "{n}, серьёзно? Все уже поставили, а ты сдулся 🖕 Последний раз по-хорошему: возвращайся.",
+]
+ZASOS_INTERVAL_H = 22          # дозировано: не чаще ~раза в сутки (НЕ флуд)
+
+
+def _tg_return_keyboard():
+    """Инлайн-кнопка «Я вернулся, отсосите» → на сайт к ставкам."""
+    return {"inline_keyboard": [[
+        {"text": "😤 Я вернулся, отсосите", "url": f"{PUBLIC_BASE_URL}/"},
+    ]]}
+
+
+def _check_and_send_zasos():
+    """OTS-96: дозированные ядрёные пинги забившим, чтобы вернуть в игру. Не флуд:
+    не чаще раза в ~сутки на человека, с нарастающей ядрёностью. Вернулся к ставкам →
+    страж-строка снята (в save_prediction), пинги прекращаются."""
+    if not TELEGRAM_TOKEN:
+        return
+    try:
+        now_utc = datetime.now(timezone.utc)
+        now_ms = int(now_utc.timestamp() * 1000)
+        db = get_db()
+
+        inactive = _compute_inactive_user_ids(db, now_utc)
+
+        # Активным чистим страж (эскалация с нуля в след. раз, пинги стоп)
+        active_with_row = [r["user_id"] for r in db.execute(
+            "SELECT user_id FROM telegram_zasos").fetchall()
+            if r["user_id"] not in inactive]
+        for uid in active_with_row:
+            db.execute("DELETE FROM telegram_zasos WHERE user_id=%s", [uid])
+        if active_with_row:
+            db.commit()
+
+        if not inactive:
+            db.close()
+            return
+
+        # Забившие с привязанным ТГ и не замьютившие
+        rows = db.execute(
+            "SELECT id, nickname, telegram_chat_id FROM users "
+            "WHERE telegram_chat_id IS NOT NULL AND COALESCE(tg_muted,0)=0").fetchall()
+        state = {r["user_id"]: (r["level"], r["last_sent"]) for r in db.execute(
+            "SELECT user_id, level, last_sent FROM telegram_zasos").fetchall()}
+        interval_ms = ZASOS_INTERVAL_H * 3600 * 1000
+
+        sent = 0
+        for u in rows:
+            uid = u["id"]
+            if uid not in inactive:
+                continue
+            level, last_sent = state.get(uid, (0, None))
+            if last_sent is not None and (now_ms - last_sent) < interval_ms:
+                continue  # дозируем — рано ещё
+            line = ZASOS_LINES[min(level, len(ZASOS_LINES) - 1)].format(n=u["nickname"])
+            _tg_send(u["telegram_chat_id"], line, reply_markup=_tg_return_keyboard())
+            db.execute(
+                "INSERT INTO telegram_zasos (user_id, level, last_sent) VALUES (%s, %s, %s) "
+                "ON CONFLICT (user_id) DO UPDATE SET level=EXCLUDED.level, last_sent=EXCLUDED.last_sent",
+                [uid, level + 1, now_ms])
+            db.commit()
+            sent += 1
+            time.sleep(0.06)  # под лимит Telegram
+
+        if sent:
+            print(f"[tg] zasos pings sent: {sent}")
+        db.close()
+    except Exception as e:
+        print(f"[tg] zasos error: {e}")
+
+
 def _fetch_playoff_shootout(match_id):
     """OTS-47: тянем детальный фид матча (`/games/{id}`) и считаем серию пенальти из
     событий. Серия в апи — это события type=1, name «Penalty» (забил) / «Missed Penalty»
@@ -1042,6 +1226,7 @@ def _reminder_loop():
         _auto_resolve_playoff_winners()   # OTS-47: до рассылки — чтобы проход по пенальти был известен
         _check_and_send_bet_pings()
         _check_and_send_results()
+        _check_and_send_zasos()           # OTS-96: «засос» забившим (сам дозирует частоту)
         time.sleep(600)  # every 10 min
 
 
@@ -1766,6 +1951,12 @@ def save_prediction(match_id):
         [uid, match_id, data.get("home",""), data.get("away",""), data.get("bestPlayer",""),
          advance, penalties]
     )
+    # OTS-96: любая ставка с непустым счётом = «человек снова активен» → снимаем
+    # с него печать позора и глушим «засос» (частью через last_bet_at, частью через
+    # очистку страж-строки ниже, чтобы пинги встали мгновенно, не дожидаясь loop).
+    if (data.get("home", "") != "") or (data.get("away", "") != ""):
+        db.execute("UPDATE users SET last_bet_at=%s WHERE id=%s", [int(time.time() * 1000), uid])
+        db.execute("DELETE FROM telegram_zasos WHERE user_id=%s", [uid])
     db.commit()
     db.close()
     return jsonify({"ok": True})
@@ -1905,6 +2096,8 @@ def leaderboard():
     actual_outrights = {"winner": ao["winner"], "bestPlayer": ao["best_player"],
                         "topScorer": ao["top_scorer"], "darkHorse": ao["dark_horse"]} if ao else {}
 
+    inactive_ids = _compute_inactive_user_ids(db)  # OTS-96: печать позора забившим
+
     result = []
     for u in users:
         preds = {r["match_id"]: {"home": r["home_score"], "away": r["away_score"],
@@ -1922,6 +2115,7 @@ def leaderboard():
             "matches": preds,
             "outrights": outrights,
             "bonusPoints": u["bonus_points"] or 0,
+            "inactive": u["id"] in inactive_ids,   # OTS-96
         })
 
     db.close()
